@@ -9,25 +9,31 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <style>
-    /* Custom scrollbar for better mobile UX */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #f1f1f1; }
-    ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-  </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans min-h-screen pb-24">
   <div id="root"></div>
   <script type="text/babel">
     const { useState, useMemo, useCallback, useEffect } = React;
 
+    // ============================================================================
+    // TEMPLATE DETECTION & PARSERS
+    // ============================================================================
+
     function detectTemplate(rows) {
       if (!rows || rows.length < 2) return 'UNKNOWN';
       const h = rows[0].map(c => String(c ?? '').trim().toLowerCase());
-      if (h.includes('designation') && h.includes('prix') && h.includes('etat')) return 'CONVERTY';
+      
+      // CONVERTY fingerprint: flat table with 'designation', 'prix', 'etat'
+      if (h.includes('designation') && h.includes('prix') && h.includes('etat')) {
+        return 'CONVERTY';
+      }
+      
+      // LOGISTA fingerprint: first cell starts with 'détails paiement'
       if (String(rows[0][0] ?? '').trim().toLowerCase().startsWith('détails paiement') ||
-          String(rows[0][0] ?? '').trim().toLowerCase().startsWith('details paiement')) return 'LOGISTA';
+          String(rows[0][0] ?? '').trim().toLowerCase().startsWith('details paiement')) {
+        return 'LOGISTA';
+      }
+      
       return 'UNKNOWN';
     }
 
@@ -36,55 +42,71 @@
       const h = header.map(c => String(c ?? '').trim().toLowerCase());
       const get = (row, col) => row[h.indexOf(col)];
 
+      // CRITICAL FIX: Only include rows where etat === 'Livré' (delivered only)
       const parsed = data
         .filter(row => {
           const state = String(get(row, 'etat') ?? '').trim().toLowerCase();
-          return state === 'livré' || state === 'retour';
+          return state === 'livré'; // <-- ONLY delivered, NOT returned
         })
-        .map(row => {
-          const state = String(get(row, 'etat') ?? '').trim().toLowerCase();
-          return {
-            id: crypto.randomUUID(),
-            productName: String(get(row, 'designation') ?? '—').trim() || '—',
-            deliveryCompany: deliveryCompanyName,
-            totalSales: state === 'livré' ? parseFloat(String(get(row, 'prix') ?? '0').replace(/,/g, '')) || 0 : 0,
-            status: state === 'livré' ? 'delivered' : 'returned',
-            zone: 'master'
-          };
-        });
+        .map(row => ({
+          id: crypto.randomUUID(),
+          productName: String(get(row, 'designation') ?? '—').trim() || '—',
+          deliveryCompany: deliveryCompanyName,
+          totalSales: parseFloat(String(get(row, 'prix') ?? '0').replace(/,/g, '')) || 0,
+          status: 'delivered',
+          zone: 'master'
+        }));
+
       return { rows: parsed, autoFees: null };
     }
 
     function parseLogista(rows) {
+      // Helper: find row containing both keywords
       const findRow = (kw1, kw2) => rows.findIndex(r =>
         r.some(c => String(c ?? '').includes(kw1)) &&
         r.some(c => String(c ?? '').includes(kw2))
       );
+      
+      // Helper: find row where first cell starts with keyword
       const findRowSingle = (kw) => rows.findIndex(r =>
         String(r[0] ?? '').trim().startsWith(kw)
       );
 
+      // Extract sender name from metadata
       const senderRow = rows.find(r => String(r[0] ?? '').includes('Expéditeur'));
       const deliveryCompanyName = senderRow ? String(senderRow[2] ?? 'Logista').trim() : 'Logista';
 
+      // ===== DELIVERED SUB-TABLE =====
       const deliveredHeaderIdx = findRow('Code Barres', 'TTC (esp.)');
-      if (deliveredHeaderIdx === -1) throw new Error('لم يتم العثور على جدول التسليم في ملف Logista');
+      if (deliveredHeaderIdx === -1) {
+        throw new Error('لم يتم العثور على جدول التسليم في ملف Logista');
+      }
 
       const deliveredEndIdx = findRowSingle('Total Livrés');
       const deliveredData = rows
         .slice(deliveredHeaderIdx + 1, deliveredEndIdx > -1 ? deliveredEndIdx : undefined)
         .filter(r => typeof r[0] === 'number');
 
+      // ===== RETURNS SUB-TABLE =====
       const returnHeaderIdx = findRow('Code Barres', 'Frais Ret.');
       const returnEndIdx = findRowSingle('Total Retours');
       const returnData = returnHeaderIdx > -1
-        ? rows.slice(returnHeaderIdx + 1, returnEndIdx > -1 ? returnEndIdx : undefined).filter(r => typeof r[0] === 'number')
+        ? rows.slice(returnHeaderIdx + 1, returnEndIdx > -1 ? returnEndIdx : undefined)
+            .filter(r => typeof r[0] === 'number')
         : [];
 
+      // ===== AUTO-FEE COMPUTATION =====
+      // Delivery fees from column 10 of delivered sub-table
+      const autoDeliveryFees = deliveredData.reduce((s, r) => s + (parseFloat(r[10]) || 0), 0);
+      // Return fees from column 8 of returns sub-table
+      const autoReturnFees = returnData.reduce((s, r) => s + (parseFloat(r[8]) || 0), 0);
+
+      // ===== MAP ROWS =====
       const parsedDelivered = deliveredData.map(row => ({
         id: crypto.randomUUID(),
         productName: String(row[2] ?? '—').trim() || '—',
         deliveryCompany: deliveryCompanyName,
+        // CRITICAL FIX: Fallback from TTC (esp.) at index 8 to TTC (chq.) at index 9
         totalSales: parseFloat(row[8] ?? row[9] ?? 0) || 0,
         status: 'delivered',
         zone: 'master'
@@ -99,25 +121,31 @@
         zone: 'master'
       }));
 
-      return { rows: [...parsedDelivered, ...parsedReturned], autoFees: null };
+      return {
+        rows: [...parsedDelivered, ...parsedReturned],
+        autoFees: { delivery: autoDeliveryFees, return: autoReturnFees }
+      };
     }
 
-    // Component: Summary Dashboard
-    function Dashboard({ orders, fees }) {
-      const calculateBrandStats = (zone) => {
-        const brandOrders = orders.filter(o => o.zone === zone);
-        const companies = [...new Set(brandOrders.map(o => o.deliveryCompany))];
+    // ============================================================================
+    // DASHBOARD COMPONENT
+    // ============================================================================
+
+    function Dashboard({ masterRows, cakadoRows, balkisRows, fees }) {
+      const calculateBrandStats = (rows) => {
+        const companies = [...new Set(rows.map(o => o.deliveryCompany))];
         
         let totalSales = 0;
         let totalDeliveryFees = 0;
         let totalReturnFees = 0;
         
         const companyStats = companies.map(company => {
-          const compOrders = brandOrders.filter(o => o.deliveryCompany === company);
+          const compOrders = rows.filter(o => o.deliveryCompany === company);
           const deliveredCount = compOrders.filter(o => o.status === 'delivered').length;
           const returnedCount = compOrders.filter(o => o.status === 'returned').length;
           const sales = compOrders.reduce((s, o) => s + o.totalSales, 0);
           
+          // CRITICAL FIX: Use per-brand fee structure (fees[brand][company])
           const feeConfig = fees[company] || { delivery: 0, return: 0 };
           const dFee = deliveredCount * feeConfig.delivery;
           const rFee = returnedCount * feeConfig.return;
@@ -129,12 +157,14 @@
           return { company, deliveredCount, returnedCount, sales, dFee, rFee };
         });
         
+        // CRITICAL FIX: Formula = Sales - Delivery Fees - Return Fees
         const netRevenue = totalSales - totalDeliveryFees - totalReturnFees;
-        return { totalSales, totalDeliveryFees, totalReturnFees, netRevenue, companyStats, count: brandOrders.length };
+        return { totalSales, totalDeliveryFees, totalReturnFees, netRevenue, companyStats, count: rows.length };
       };
 
-      const cakado = calculateBrandStats('cakado');
-      const balkis = calculateBrandStats('balkis');
+      const masterStats = calculateBrandStats(masterRows);
+      const cakadoStats = calculateBrandStats(cakadoRows);
+      const balkisStats = calculateBrandStats(balkisRows);
 
       const formatTND = (val) => val.toLocaleString('ar-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 3 });
 
@@ -191,48 +221,27 @@
 
       return (
         <div className="flex flex-col lg:flex-row gap-4 mb-6">
-          <BrandCard title="كاكادو (CAKADO)" stats={cakado} />
-          <BrandCard title="بلقيس (Balkis)" stats={balkis} />
+          <BrandCard title="غير مصنفة" stats={masterStats} />
+          <BrandCard title="كاكادو (CAKADO)" stats={cakadoStats} />
+          <BrandCard title="بلقيس (Balkis)" stats={balkisStats} />
         </div>
       );
     }
 
+    // ============================================================================
+    // MAIN APP COMPONENT
+    // ============================================================================
+
     function App() {
-      const [orders, setOrders] = useState([]);
+      // CRITICAL FIX: Separate state arrays for each zone
+      const [masterRows, setMasterRows] = useState([]);
+      const [cakadoRows, setCakadoRows] = useState([]);
+      const [balkisRows, setBalkisRows] = useState([]);
+      
       const [fees, setFees] = useState({});
       const [error, setError] = useState(null);
-      const [selectedIds, setSelectedIds] = useState(new Set());
-      const [activeTab, setActiveTab] = useState('master'); // master, cakado, balkis
-      
-      const [searchQuery, setSearchQuery] = useState('');
-      const [filterCompany, setFilterCompany] = useState('all');
-      const [sortOrder, setSortOrder] = useState('default');
-      
-      const [customCompanies, setCustomCompanies] = useState(['First Delivery', 'Big Boss Delivery']);
-      const [newCompanyName, setNewCompanyName] = useState('');
-      const [selectedMoveCompany, setSelectedMoveCompany] = useState('');
-      
-      useEffect(() => {
-        setFees(prev => {
-          let updated = false;
-          const newFees = { ...prev };
-          customCompanies.forEach(c => {
-            if (!newFees[c]) {
-              newFees[c] = { delivery: 0, return: 0 };
-              updated = true;
-            }
-          });
-          return updated ? newFees : prev;
-        });
-      }, [customCompanies]);
-
-      const handleAddCompany = () => {
-        const name = newCompanyName.trim();
-        if (name && !customCompanies.includes(name)) {
-          setCustomCompanies(prev => [...prev, name]);
-        }
-        setNewCompanyName('');
-      };
+      const [pendingFees, setPendingFees] = useState(null);
+      const [dragOverZone, setDragOverZone] = useState(null);
 
       const handleFileUpload = useCallback((file) => {
         const reader = new FileReader();
@@ -245,9 +254,11 @@
             const template = detectTemplate(rawRows);
             let result;
 
-            if (template === 'CONVERTY') result = parseConverty(rawRows);
-            else if (template === 'LOGISTA') result = parseLogista(rawRows);
-            else {
+            if (template === 'CONVERTY') {
+              result = parseConverty(rawRows);
+            } else if (template === 'LOGISTA') {
+              result = parseLogista(rawRows);
+            } else {
               setError('خطأ: تنسيق الملف غير معروف. يُقبل ملفات Converty أو Logista فقط.');
               return;
             }
@@ -257,15 +268,19 @@
               return;
             }
 
+            // CRITICAL FIX: Full state reset on every upload
             setError(null);
-            setOrders(prev => [...prev, ...result.rows]);
+            setMasterRows(result.rows);
+            setCakadoRows([]);
+            setBalkisRows([]);
+            
+            // Auto-populate fees if detected
+            if (result.autoFees) {
+              setPendingFees(result.autoFees);
+            }
             
             // Initialize fees for new companies
             const newCompanies = [...new Set(result.rows.map(r => r.deliveryCompany))];
-            setCustomCompanies(prev => {
-              const merged = new Set([...prev, ...newCompanies]);
-              return Array.from(merged);
-            });
             setFees(prev => {
               const newFees = { ...prev };
               newCompanies.forEach(c => {
@@ -288,56 +303,55 @@
         }
       }, [handleFileUpload]);
 
-      const allCompanies = useMemo(() => {
-        return [...new Set([...customCompanies, ...orders.map(o => o.deliveryCompany)])];
-      }, [customCompanies, orders]);
+      const allRows = useMemo(() => [...masterRows, ...cakadoRows, ...balkisRows], [masterRows, cakadoRows, balkisRows]);
+      const allCompanies = useMemo(() => [...new Set(allRows.map(o => o.deliveryCompany))], [allRows]);
 
-      const filteredOrders = useMemo(() => {
-        let res = orders.filter(o => o.zone === activeTab);
-        if (searchQuery) {
-          res = res.filter(o => o.productName.toLowerCase().includes(searchQuery.toLowerCase()));
+      // ===== DRAG-AND-DROP HANDLERS =====
+      const handleDragStart = useCallback((e, row) => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', row.id);
+      }, []);
+
+      const handleDragOver = useCallback((e, zoneId) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDragOverZone(zoneId);
+      }, []);
+
+      const handleDragLeave = useCallback(() => {
+        setDragOverZone(null);
+      }, []);
+
+      const handleDrop = useCallback((e, targetZone) => {
+        e.preventDefault();
+        const rowId = e.dataTransfer.getData('text/plain');
+        setDragOverZone(null);
+
+        // Step 1: Find the row across all zones
+        const allRowsArray = [...masterRows, ...cakadoRows, ...balkisRows];
+        const sourceRow = allRowsArray.find(r => r.id === rowId);
+        if (!sourceRow) return;
+
+        // Step 2: Remove from ALL zones simultaneously
+        setMasterRows(prev => prev.filter(r => r.id !== rowId));
+        setCakadoRows(prev => prev.filter(r => r.id !== rowId));
+        setBalkisRows(prev => prev.filter(r => r.id !== rowId));
+
+        // Step 3: Append to target zone
+        if (targetZone === 'master') {
+          setMasterRows(prev => [...prev, sourceRow]);
+        } else if (targetZone === 'cakado') {
+          setCakadoRows(prev => [...prev, sourceRow]);
+        } else if (targetZone === 'balkis') {
+          setBalkisRows(prev => [...prev, sourceRow]);
         }
-        if (filterCompany !== 'all') {
-          res = res.filter(o => o.deliveryCompany === filterCompany);
-        }
-        if (sortOrder === 'asc') {
-          res = res.sort((a, b) => a.productName.localeCompare(b.productName, 'ar', { sensitivity: 'base' }));
-        } else if (sortOrder === 'desc') {
-          res = res.sort((a, b) => b.productName.localeCompare(a.productName, 'ar', { sensitivity: 'base' }));
-        }
-        return res;
-      }, [orders, activeTab, searchQuery, filterCompany, sortOrder]);
+      }, [masterRows, cakadoRows, balkisRows]);
 
-      const handleSelectAll = () => {
-        if (selectedIds.size === filteredOrders.length && filteredOrders.length > 0) {
-          setSelectedIds(new Set());
-        } else {
-          setSelectedIds(new Set(filteredOrders.map(o => o.id)));
-        }
-      };
+      const handleDragEnd = useCallback(() => {
+        setDragOverZone(null);
+      }, []);
 
-      const handleSelectRow = (id) => {
-        const next = new Set(selectedIds);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        setSelectedIds(next);
-      };
-
-      const moveSelected = (targetZone) => {
-        setOrders(prev => prev.map(o => {
-          if (selectedIds.has(o.id)) {
-            return {
-              ...o,
-              zone: targetZone,
-              deliveryCompany: selectedMoveCompany || o.deliveryCompany
-            };
-          }
-          return o;
-        }));
-        setSelectedIds(new Set());
-      };
-
-      const updateFee = (company, type, value) => {
+      const updateFee = useCallback((company, type, value) => {
         setFees(prev => ({
           ...prev,
           [company]: {
@@ -345,288 +359,215 @@
             [type]: parseFloat(value) || 0
           }
         }));
-      };
+      }, []);
 
-      return (
-        <div className="max-w-7xl mx-auto p-4 md:p-6 flex flex-col gap-6">
-          <header className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">لوحة إدارة الطلبات</h1>
-              <p className="text-gray-500 mt-1 text-sm">أداة تسوية الحسابات مع شركات التوصيل</p>
-            </div>
-            
-            <label className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg cursor-pointer font-medium transition-colors text-center inline-flex justify-center items-center gap-2 shadow-sm">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
-              رفع ملف طلبيات (Excel / CSV)
-              <input type="file" accept=".xlsx,.csv" className="hidden" onChange={onFileInputChange} />
-            </label>
-          </header>
+      const applyPendingFees = useCallback(() => {
+        if (pendingFees) {
+          const allCompaniesSet = new Set(allRows.map(r => r.deliveryCompany));
+          allCompaniesSet.forEach(company => {
+            setFees(prev => ({
+              ...prev,
+              [company]: {
+                delivery: pendingFees.delivery || prev[company]?.delivery || 0,
+                return: pendingFees.return || prev[company]?.return || 0
+              }
+            }));
+          });
+          setPendingFees(null);
+        }
+      }, [pendingFees, allRows]);
 
-          {error && (
-            <div className="bg-red-50 text-red-700 border border-red-200 rounded-lg p-4 flex items-center gap-3">
-              <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              <p>{error}</p>
-            </div>
-          )}
+      // ===== TABLE RENDERING HELPER =====
+      const BrandTable = ({ title, rows, zoneId }) => {
+        // Sort by company, then render with dividers
+        const sortedRows = useMemo(() => {
+          return [...rows].sort((a, b) =>
+            a.deliveryCompany.localeCompare(b.deliveryCompany, 'ar', { sensitivity: 'base' })
+          );
+        }, [rows]);
 
-          {orders.length === 0 && !error && (
-             <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 flex flex-col items-center justify-center bg-white text-center">
-              <svg className="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-              <p className="text-xl font-medium text-gray-700">لا توجد بيانات حالياً</p>
-              <p className="text-gray-500 mt-2 max-w-sm">قم برفع ملفات طلبيات (Converty أو Logista) للبدء في تقسيمها وحساب الإيرادات تلقائياً.</p>
-            </div>
-          )}
+        const grouped = useMemo(() => {
+          const groups = [];
+          let currentCompany = null;
+          let currentGroup = [];
+          
+          sortedRows.forEach(row => {
+            if (row.deliveryCompany !== currentCompany) {
+              if (currentGroup.length > 0) {
+                groups.push({ company: currentCompany, rows: currentGroup });
+              }
+              currentCompany = row.deliveryCompany;
+              currentGroup = [];
+            }
+            currentGroup.push(row);
+          });
+          
+          if (currentGroup.length > 0) {
+            groups.push({ company: currentCompany, rows: currentGroup });
+          }
+          
+          return groups;
+        }, [sortedRows]);
 
-          {orders.length > 0 && (
-            <>
-              <Dashboard orders={orders} fees={fees} />
+        const isActive = dragOverZone === zoneId;
+        const zoneClasses = isActive
+          ? 'border-2 border-blue-500 bg-blue-50 rounded-lg p-2'
+          : 'border-2 border-dashed border-gray-300 min-h-[8rem] rounded';
 
-              <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 md:p-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                  <h2 className="text-lg font-bold text-gray-800">رسوم شركات التوصيل</h2>
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <input 
-                      type="text" 
-                      placeholder="اسم شركة جديدة..."
-                      className="flex-1 sm:flex-none border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
-                      value={newCompanyName}
-                      onChange={e => setNewCompanyName(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleAddCompany()}
-                    />
-                    <button 
-                      onClick={handleAddCompany}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      إضافة
-                    </button>
-                  </div>
+        return (
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-gray-800 mb-3">{title}</h3>
+            <div
+              className={`${zoneClasses} transition-all`}
+              onDragOver={(e) => handleDragOver(e, zoneId)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, zoneId)}
+            >
+              {rows.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">لا توجد طلبات</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">اسم المنتج</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">الشركة</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">الحالة</th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-700">المبلغ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {grouped.map((group, gIdx) => (
+                        <React.Fragment key={gIdx}>
+                          {group.rows.map((row, rIdx) => (
+                            <tr
+                              key={row.id}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, row)}
+                              onDragEnd={handleDragEnd}
+                              className="border-b border-gray-100 hover:bg-blue-50 cursor-move transition-colors"
+                            >
+                              <td className="px-3 py-2 text-gray-900 truncate" title={row.productName}>{row.productName}</td>
+                              <td className="px-3 py-2 text-gray-600">{row.deliveryCompany}</td>
+                              <td className="px-3 py-2">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold ${row.status === 'delivered' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                  {row.status === 'delivered' ? 'مُسلّم' : 'مسترجع'}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 font-bold text-gray-900">
+                                {row.status === 'delivered' ? row.totalSales.toFixed(3) + ' TND' : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                          {gIdx < grouped.length - 1 && (
+                            <tr className="bg-gray-50">
+                              <td colSpan="4" className="px-3 py-1 text-xs text-gray-500 font-semibold">
+                                {grouped[gIdx + 1].company}
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              )}
+            </div>
+
+            {/* Fee inputs for this brand */}
+            {allCompanies.length > 0 && (
+              <div className="mt-4 bg-white rounded-lg p-3 border border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">الرسوم</h4>
+                <div className="grid grid-cols-1 gap-3">
                   {allCompanies.map(company => (
-                    <div key={company} className="border border-gray-100 bg-gray-50 p-4 rounded-lg relative group">
-                      <h3 className="font-semibold text-gray-800 mb-3">{company}</h3>
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">تسعيرة الطلب المُسلَّم (TND)</label>
-                          <input
-                            type="number" min="0" step="0.001" dir="ltr"
-                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
-                            value={fees[company]?.delivery || 0}
-                            onChange={(e) => updateFee(company, 'delivery', e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">تسعيرة الطلب المسترجع (TND)</label>
-                          <input
-                            type="number" min="0" step="0.001" dir="ltr"
-                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white"
-                            value={fees[company]?.return || 0}
-                            onChange={(e) => updateFee(company, 'return', e.target.value)}
-                          />
-                        </div>
+                    <div key={company} className="flex items-center gap-2">
+                      <label className="text-xs font-medium text-gray-600 flex-1">{company}</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          value={fees[company]?.delivery || 0}
+                          onChange={(e) => updateFee(company, 'delivery', e.target.value)}
+                          placeholder="توصيل"
+                          className="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          value={fees[company]?.return || 0}
+                          onChange={(e) => updateFee(company, 'return', e.target.value)}
+                          placeholder="إرجاع"
+                          className="w-20 px-2 py-1 border border-gray-300 rounded text-xs text-center"
+                        />
                       </div>
                     </div>
                   ))}
                 </div>
-              </section>
-
-              <section className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden relative">
-                {/* Tabs */}
-                <div className="flex border-b border-gray-200 bg-gray-50 overflow-x-auto">
-                  <button 
-                    onClick={() => { setActiveTab('master'); setSelectedIds(new Set()); }}
-                    className={`flex-none w-1/3 min-w-[120px] py-4 px-2 text-sm font-bold text-center border-b-2 transition-colors ${activeTab === 'master' ? 'border-blue-600 text-blue-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-100'}`}
-                  >
-                    غير مصنفة ({orders.filter(o => o.zone === 'master').length})
-                  </button>
-                  <button 
-                    onClick={() => { setActiveTab('cakado'); setSelectedIds(new Set()); }}
-                    className={`flex-none w-1/3 min-w-[120px] py-4 px-2 text-sm font-bold text-center border-b-2 transition-colors ${activeTab === 'cakado' ? 'border-blue-600 text-blue-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-100'}`}
-                  >
-                    كاكادو ({orders.filter(o => o.zone === 'cakado').length})
-                  </button>
-                  <button 
-                    onClick={() => { setActiveTab('balkis'); setSelectedIds(new Set()); }}
-                    className={`flex-none w-1/3 min-w-[120px] py-4 px-2 text-sm font-bold text-center border-b-2 transition-colors ${activeTab === 'balkis' ? 'border-blue-600 text-blue-700 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-100'}`}
-                  >
-                    بلقيس ({orders.filter(o => o.zone === 'balkis').length})
-                  </button>
-                </div>
-
-                {/* Filters */}
-                <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-3 bg-white flex-wrap">
-                  <div className="relative flex-1 min-w-[200px]">
-                    <svg className="w-5 h-5 absolute right-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                    <input
-                      type="text"
-                      placeholder="ابحث عن منتج..."
-                      className="w-full border border-gray-300 rounded-lg pr-10 pl-4 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
-                      value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                  <select
-                    className="border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[140px]"
-                    value={filterCompany}
-                    onChange={e => setFilterCompany(e.target.value)}
-                  >
-                    <option value="all">تصفية: جميع الشركات</option>
-                    {allCompanies.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <select
-                    className="border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[140px]"
-                    value={sortOrder}
-                    onChange={e => setSortOrder(e.target.value)}
-                  >
-                    <option value="default">الترتيب: الافتراضي</option>
-                    <option value="asc">الاسم (أ - ي)</option>
-                    <option value="desc">الاسم (ي - أ)</option>
-                  </select>
-                </div>
-
-                {/* List/Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm text-right">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 hidden md:table-header-group">
-                      <tr>
-                        <th className="px-4 py-3 w-12 text-center">
-                          <input 
-                            type="checkbox" 
-                            className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
-                            checked={filteredOrders.length > 0 && selectedIds.size === filteredOrders.length}
-                            onChange={handleSelectAll}
-                          />
-                        </th>
-                        <th className="px-4 py-3 font-medium">المنتج</th>
-                        <th className="px-4 py-3 font-medium">الشركة</th>
-                        <th className="px-4 py-3 font-medium">الحالة</th>
-                        <th className="px-4 py-3 font-medium">المبلغ</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {/* Mobile Select All */}
-                      <tr className="md:hidden bg-gray-50 border-b border-gray-200">
-                        <td colSpan="5" className="px-4 py-3">
-                          <label className="flex items-center gap-3 text-sm font-medium text-gray-700 cursor-pointer">
-                            <input 
-                              type="checkbox" 
-                              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                              checked={filteredOrders.length > 0 && selectedIds.size === filteredOrders.length}
-                              onChange={handleSelectAll}
-                            />
-                            تحديد كل الطلبات المعروضة
-                          </label>
-                        </td>
-                      </tr>
-                      {filteredOrders.length === 0 ? (
-                        <tr>
-                          <td colSpan="5" className="px-4 py-8 text-center text-gray-500">
-                            لا توجد طلبات تطابق معايير البحث
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredOrders.map(row => (
-                          <tr 
-                            key={row.id} 
-                            onClick={() => handleSelectRow(row.id)}
-                            className={`hover:bg-blue-50 cursor-pointer transition-colors flex flex-col md:table-row py-4 md:py-0 px-4 md:px-0 ${selectedIds.has(row.id) ? 'bg-blue-50/60' : 'bg-white'}`}
-                          >
-                            <td className="md:px-4 md:py-3 md:w-12 text-center hidden md:table-cell align-middle">
-                              <input 
-                                type="checkbox" 
-                                className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 pointer-events-none"
-                                checked={selectedIds.has(row.id)}
-                                readOnly
-                              />
-                            </td>
-                            
-                            {/* Mobile View rendering */}
-                            <td className="md:hidden flex items-start gap-3 w-full">
-                              <input 
-                                type="checkbox" 
-                                className="w-5 h-5 mt-0.5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 pointer-events-none flex-shrink-0"
-                                checked={selectedIds.has(row.id)}
-                                readOnly
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="font-semibold text-gray-900 leading-tight mb-2">{row.productName}</div>
-                                <div className="text-xs flex flex-wrap gap-2 items-center">
-                                  <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded font-medium">{row.deliveryCompany}</span>
-                                  <span className={`px-2 py-1 rounded font-medium ${row.status === 'delivered' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                                    {row.status === 'delivered' ? 'مُسلّم' : 'مسترجع'}
-                                  </span>
-                                  <span className="mr-auto font-bold text-gray-900 text-sm">
-                                    {row.status === 'delivered' ? row.totalSales.toFixed(3) + ' TND' : '—'}
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-                            
-                            {/* Desktop View rendering */}
-                            <td className="px-4 py-3 hidden md:table-cell max-w-[250px] truncate text-gray-900 font-medium" title={row.productName}>{row.productName}</td>
-                            <td className="px-4 py-3 hidden md:table-cell whitespace-nowrap text-gray-600">{row.deliveryCompany}</td>
-                            <td className="px-4 py-3 hidden md:table-cell whitespace-nowrap">
-                              <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold ${row.status === 'delivered' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                                {row.status === 'delivered' ? 'مُسلّم' : 'مسترجع'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 hidden md:table-cell whitespace-nowrap font-bold text-gray-900">
-                              {row.status === 'delivered' ? row.totalSales.toFixed(3) + ' TND' : '—'}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </>
-          )}
-
-          {/* Floating Action Bar */}
-          {selectedIds.size > 0 && (
-            <div className="fixed bottom-0 left-0 right-0 p-4 z-50 pointer-events-none">
-              <div className="max-w-5xl mx-auto bg-gray-900 text-white rounded-xl shadow-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 pointer-events-auto shadow-blue-900/20">
-                <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-lg bg-blue-600 text-white px-3 py-1 rounded-lg shadow-sm">{selectedIds.size}</span>
-                    <span className="text-gray-200 font-medium text-sm">محدد</span>
-                  </div>
-                  <button onClick={() => setSelectedIds(new Set())} className="text-gray-400 hover:text-white text-sm font-medium px-2 py-1 rounded hover:bg-gray-800 transition-colors">إلغاء</button>
-                </div>
-                
-                <div className="flex items-center gap-2 w-full md:w-auto border-t md:border-t-0 md:border-r border-gray-700 pt-3 md:pt-0 md:pr-4">
-                  <span className="text-sm font-medium text-gray-300 hidden sm:inline">تعيين كـ:</span>
-                  <select 
-                    className="flex-1 sm:flex-none bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
-                    value={selectedMoveCompany}
-                    onChange={e => setSelectedMoveCompany(e.target.value)}
-                  >
-                    <option value="">(نفس الشركة الحالية)</option>
-                    {allCompanies.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-
-                <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 hide-scrollbar mt-1 md:mt-0">
-                  {activeTab !== 'master' && (
-                    <button onClick={() => moveSelected('master')} className="flex-1 md:flex-none whitespace-nowrap px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-bold transition-colors">
-                      إلى غير مصنفة
-                    </button>
-                  )}
-                  {activeTab !== 'cakado' && (
-                    <button onClick={() => moveSelected('cakado')} className="flex-1 md:flex-none whitespace-nowrap px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors">
-                      نقل إلى كاكادو
-                    </button>
-                  )}
-                  {activeTab !== 'balkis' && (
-                    <button onClick={() => moveSelected('balkis')} className="flex-1 md:flex-none whitespace-nowrap px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-bold transition-colors">
-                      نقل إلى بلقيس
-                    </button>
-                  )}
-                </div>
               </div>
+            )}
+          </div>
+        );
+      };
+
+      return (
+        <div className="max-w-7xl mx-auto p-4 md:p-6 flex flex-col gap-6">
+          {/* Page Header */}
+          <div className="border-b border-gray-200 pb-4">
+            <h1 className="text-3xl font-bold text-gray-900">لوحة إدارة الطلبات</h1>
+          </div>
+
+          {/* File Upload Zone */}
+          <div className="bg-white rounded-lg border-2 border-dashed border-gray-300 p-6 text-center hover:border-blue-400 transition-colors">
+            <input
+              type="file"
+              id="fileInput"
+              accept=".xlsx,.csv"
+              onChange={onFileInputChange}
+              className="hidden"
+            />
+            <label htmlFor="fileInput" className="cursor-pointer">
+              <p className="text-gray-600 mb-2">هنا أو اختر ملف Excel أو CSV</p>
+              <p className="text-sm text-gray-500">(.xlsx و .csv)</p>
+            </label>
+          </div>
+
+          {/* Auto-Fees Notice */}
+          {pendingFees && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800 mb-2">
+                تم اكتشاف رسوم تسليم وإرجاع من ملف Logista. يمكنك تطبيقها على جميع الشركات:
+              </p>
+              <p className="text-sm text-blue-700 mb-3">
+                توصيل: {pendingFees.delivery.toFixed(3)} TND | إرجاع: {pendingFees.return.toFixed(3)} TND
+              </p>
+              <button
+                onClick={applyPendingFees}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors"
+              >
+                تطبيق الرسوم
+              </button>
             </div>
           )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-800 font-semibold mb-1">خطأ في الملف</p>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          {/* Summary Dashboard */}
+          <Dashboard masterRows={masterRows} cakadoRows={cakadoRows} balkisRows={balkisRows} fees={fees} />
+
+          {/* Three-Column Table Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <BrandTable title="غير مصنفة" rows={masterRows} zoneId="master" />
+            <BrandTable title="كاكادو (CAKADO)" rows={cakadoRows} zoneId="cakado" />
+            <BrandTable title="بلقيس (Balkis)" rows={balkisRows} zoneId="balkis" />
+          </div>
         </div>
       );
     }
