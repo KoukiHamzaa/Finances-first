@@ -9,6 +9,10 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <style>
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
 </head>
 <body class="bg-gray-50 text-gray-900 font-sans min-h-screen p-4 md:p-6">
   <div id="root" dir="rtl"></div>
@@ -35,16 +39,17 @@
 
       const parsed = data
         .filter(row => {
-          // CRITICAL FIX: Only include rows where Etat === 'Livré'
-          const state = String(get(row, 'etat') ?? '').trim();
-          return state === 'Livré';
+          const state = String(get(row, 'etat') ?? '').trim().toLowerCase();
+          return state.includes('livré') || state.includes('livre') || state.includes('retour') || state.includes('annul');
         })
         .map(row => {
+          const state = String(get(row, 'etat') ?? '').trim().toLowerCase();
+          const isDelivered = state.includes('livré') || state.includes('livre');
           return {
             id: crypto.randomUUID(),
             productName: String(get(row, 'designation') ?? '—').trim() || '—',
-            totalSales: parseFloat(String(get(row, 'prix') ?? '0').replace(/,/g, '')) || 0,
-            status: 'delivered'
+            totalSales: isDelivered ? (parseFloat(String(get(row, 'prix') ?? '0').replace(/,/g, '')) || 0) : 0,
+            status: isDelivered ? 'delivered' : 'returned'
           };
         });
       return { rows: parsed, autoFees: null };
@@ -52,27 +57,42 @@
 
     // Parse Logista
     function parseLogista(rows) {
-      // Dynamic section detection
+      // Dynamic section detection (case-insensitive)
       const findRow = (kw1, kw2) => rows.findIndex(r =>
-        r.some(c => String(c ?? '').includes(kw1)) &&
-        r.some(c => String(c ?? '').includes(kw2))
+        r.some(c => String(c ?? '').toLowerCase().includes(kw1.toLowerCase())) &&
+        (!kw2 || r.some(c => String(c ?? '').toLowerCase().includes(kw2.toLowerCase())))
       );
       const findRowSingle = (kw) => rows.findIndex(r =>
-        String(r[0] ?? '').trim().startsWith(kw)
+        String(r[0] ?? '').trim().toLowerCase().startsWith(kw.toLowerCase())
       );
 
-      const deliveredHeaderIdx = findRow('Code Barres', 'TTC (esp.)');
+      const deliveredHeaderIdx = findRow('Code Barres', 'TTC');
       if (deliveredHeaderIdx === -1) throw new Error('لم يتم العثور على جدول التسليم في ملف Logista');
 
-      const deliveredEndIdx = findRowSingle('Total Livrés');
+      const deliveredEndIdx = findRowSingle('total liv');
+      
+      const isDataRow = (r) => {
+        const first = String(r[0] ?? '').trim();
+        // A valid row has something in the first cell, contains digits, and is not a "Total" row or header
+        return first !== '' && !first.toLowerCase().startsWith('total') && first.toLowerCase() !== 'code barres' && /\d/.test(first);
+      };
+
       const deliveredData = rows
         .slice(deliveredHeaderIdx + 1, deliveredEndIdx > -1 ? deliveredEndIdx : undefined)
-        .filter(r => typeof r[0] === 'number');
+        .filter(isDataRow);
 
-      const returnHeaderIdx = findRow('Code Barres', 'Frais Ret.');
-      const returnEndIdx = findRowSingle('Total Retours');
+      // Robust return header detection
+      let returnHeaderIdx = findRow('Code Barres', 'frais ret');
+      if (returnHeaderIdx === -1 && deliveredEndIdx > -1) {
+        // Fallback: Find 'Code Barres' after the delivered section
+        const remaining = rows.slice(deliveredEndIdx);
+        const relIdx = remaining.findIndex(r => r.some(c => String(c ?? '').toLowerCase().includes('code barres')));
+        if (relIdx > -1) returnHeaderIdx = deliveredEndIdx + relIdx;
+      }
+
+      const returnEndIdx = findRowSingle('total ret');
       const returnData = returnHeaderIdx > -1
-        ? rows.slice(returnHeaderIdx + 1, returnEndIdx > -1 ? returnEndIdx : undefined).filter(r => typeof r[0] === 'number')
+        ? rows.slice(returnHeaderIdx + 1, returnEndIdx > -1 ? returnEndIdx : undefined).filter(isDataRow)
         : [];
 
       const parsedDelivered = deliveredData.map(row => {
@@ -119,6 +139,9 @@
       const [cakadoRows, setCakadoRows] = useState([]);
       const [balkisRows, setBalkisRows] = useState([]);
       
+      const [masterSortOrder, setMasterSortOrder] = useState('default');
+      const [selectedIds, setSelectedIds] = useState(new Set());
+
       const [error, setError] = useState(null);
       const [autoFeesInfo, setAutoFeesInfo] = useState(null);
 
@@ -237,18 +260,101 @@
         return { totalSales, totalDeliveryFees, totalReturnFees, netRevenue, count: rows.length };
       };
 
+      const sortedMasterRows = useMemo(() => {
+        let res = [...masterRows];
+        if (masterSortOrder === 'asc') {
+          res.sort((a, b) => a.productName.localeCompare(b.productName, 'ar', { sensitivity: 'base' }));
+        } else if (masterSortOrder === 'desc') {
+          res.sort((a, b) => b.productName.localeCompare(a.productName, 'ar', { sensitivity: 'base' }));
+        }
+        return res;
+      }, [masterRows, masterSortOrder]);
+
       const cakadoStats = calculateStats(cakadoRows, cakadoFees);
       const balkisStats = calculateStats(balkisRows, balkisFees);
 
-      const renderTable = (rows, title, zone) => (
+      const toggleSelectAll = (rowsToToggle) => {
+        const rowIds = rowsToToggle.map(r => r.id);
+        const allSelected = rowIds.length > 0 && rowIds.every(id => selectedIds.has(id));
+        if (allSelected) {
+          const newSet = new Set(selectedIds);
+          rowIds.forEach(id => newSet.delete(id));
+          setSelectedIds(newSet);
+        } else {
+          const newSet = new Set(selectedIds);
+          rowIds.forEach(id => newSet.add(id));
+          setSelectedIds(newSet);
+        }
+      };
+
+      const toggleSelect = (e, id) => {
+        e.stopPropagation();
+        const newSet = new Set(selectedIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedIds(newSet);
+      };
+
+      const moveSelected = (targetZone) => {
+        const toMove = [];
+        const newMaster = [];
+        masterRows.forEach(r => selectedIds.has(r.id) ? toMove.push(r) : newMaster.push(r));
+        
+        const newCakado = [];
+        cakadoRows.forEach(r => selectedIds.has(r.id) ? toMove.push(r) : newCakado.push(r));
+        
+        const newBalkis = [];
+        balkisRows.forEach(r => selectedIds.has(r.id) ? toMove.push(r) : newBalkis.push(r));
+
+        if (targetZone === 'master') setMasterRows([...newMaster, ...toMove]);
+        else setMasterRows(newMaster);
+
+        if (targetZone === 'cakado') setCakadoRows([...newCakado, ...toMove]);
+        else setCakadoRows(newCakado);
+
+        if (targetZone === 'balkis') setBalkisRows([...newBalkis, ...toMove]);
+        else setBalkisRows(newBalkis);
+
+        setSelectedIds(new Set());
+      };
+
+      const renderTable = (rows, title, zone, sortOrder = null, setSortOrder = null, selectable = false) => {
+        const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
+        
+        return (
         <div 
           className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full min-h-[400px]"
           onDrop={(e) => handleDrop(e, zone)}
           onDragOver={handleDragOver}
         >
-          <div className="bg-gray-100 p-3 border-b border-gray-200 rounded-t-lg font-bold text-gray-700 flex justify-between items-center">
-            <span>{title}</span>
-            <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{rows.length}</span>
+          <div className="bg-gray-100 p-3 border-b border-gray-200 rounded-t-lg font-bold text-gray-700 flex flex-col gap-2">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                {selectable && (
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                    checked={allSelected}
+                    onChange={() => toggleSelectAll(rows)}
+                  />
+                )}
+                <span>{title}</span>
+              </div>
+              <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">{rows.length}</span>
+            </div>
+            {setSortOrder && (
+              <div className="flex gap-2 mt-1">
+                <select 
+                  className="text-xs border border-gray-300 rounded px-2 py-1 flex-1 bg-white font-normal"
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                >
+                  <option value="default">الترتيب الافتراضي</option>
+                  <option value="asc">الاسم (أ - ي)</option>
+                  <option value="desc">الاسم (ي - أ)</option>
+                </select>
+              </div>
+            )}
           </div>
           <div className="flex-1 p-2 overflow-y-auto space-y-2">
             {rows.map(row => (
@@ -256,14 +362,28 @@
                 key={row.id}
                 draggable
                 onDragStart={(e) => handleDragStart(e, row.id)}
-                className="bg-gray-50 border border-gray-200 p-3 rounded shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-300 transition-colors"
+                onClick={selectable ? (e) => toggleSelect(e, row.id) : undefined}
+                className={`bg-gray-50 border p-3 rounded shadow-sm transition-colors ${selectable ? 'cursor-pointer hover:border-blue-300' : 'cursor-grab active:cursor-grabbing hover:border-blue-300'} ${selectedIds.has(row.id) ? 'border-blue-500 ring-1 ring-blue-500 bg-blue-50/50' : 'border-gray-200'}`}
               >
-                <div className="font-medium text-sm text-gray-800 mb-1">{row.productName}</div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className={`px-2 py-0.5 rounded ${row.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                    {row.status === 'delivered' ? 'مُسلّم' : 'مسترجع'}
-                  </span>
-                  <span className="font-bold text-gray-900">{row.status === 'delivered' ? formatTND(row.totalSales) : '—'}</span>
+                <div className="flex items-start gap-2">
+                  {selectable && (
+                    <input 
+                      type="checkbox" 
+                      className="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      checked={selectedIds.has(row.id)}
+                      onChange={(e) => toggleSelect(e, row.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm text-gray-800 mb-1 truncate">{row.productName}</div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className={`px-2 py-0.5 rounded ${row.status === 'delivered' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {row.status === 'delivered' ? 'مُسلّم' : 'مسترجع'}
+                      </span>
+                      <span className="font-bold text-gray-900">{row.status === 'delivered' ? formatTND(row.totalSales) : '—'}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -275,6 +395,7 @@
           </div>
         </div>
       );
+      };
 
       const renderFeeInputs = (fees, setFees) => (
         <div className="mt-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
@@ -371,18 +492,44 @@
               {/* 6. Three-column responsive grid */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div>
-                  {renderTable(masterRows, 'غير مصنفة', 'master')}
+                  {renderTable(sortedMasterRows, 'غير مصنفة', 'master', masterSortOrder, setMasterSortOrder, true)}
                 </div>
                 <div>
-                  {renderTable(cakadoRows, 'كاكادو', 'cakado')}
+                  {renderTable(cakadoRows, 'كاكادو', 'cakado', null, null, true)}
                   {renderFeeInputs(cakadoFees, setCakadoFees)}
                 </div>
                 <div>
-                  {renderTable(balkisRows, 'بلقيس', 'balkis')}
+                  {renderTable(balkisRows, 'بلقيس', 'balkis', null, null, true)}
                   {renderFeeInputs(balkisFees, setBalkisFees)}
                 </div>
               </div>
             </>
+          )}
+
+          {/* Floating Action Bar */}
+          {selectedIds.size > 0 && (
+            <div className="fixed bottom-0 left-0 right-0 p-4 z-50 pointer-events-none">
+              <div className="max-w-4xl mx-auto bg-gray-900 text-white rounded-xl shadow-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 pointer-events-auto shadow-blue-900/20">
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-lg bg-blue-600 text-white px-3 py-1 rounded-lg shadow-sm">{selectedIds.size}</span>
+                    <span className="text-gray-200 font-medium text-sm">محدد</span>
+                  </div>
+                  <button onClick={() => setSelectedIds(new Set())} className="text-gray-400 hover:text-white text-sm font-medium px-2 py-1 rounded hover:bg-gray-800 transition-colors">إلغاء</button>
+                </div>
+                <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
+                  <button onClick={() => moveSelected('master')} className="flex-1 sm:flex-none whitespace-nowrap px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-bold transition-colors">
+                    إلى غير مصنفة
+                  </button>
+                  <button onClick={() => moveSelected('cakado')} className="flex-1 sm:flex-none whitespace-nowrap px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-bold transition-colors">
+                    نقل إلى كاكادو
+                  </button>
+                  <button onClick={() => moveSelected('balkis')} className="flex-1 sm:flex-none whitespace-nowrap px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-bold transition-colors">
+                    نقل إلى بلقيس
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       );
