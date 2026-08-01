@@ -1,19 +1,17 @@
-const fs = require('fs');
 const babel = require('@babel/core');
+const fs = require('fs');
 const html = fs.readFileSync('index.html', 'utf8');
-
-const scriptMatch = html.match(/<script type="text\/babel">([\s\S]*?)<\/script>/);
-if (!scriptMatch) {
-  console.log("No babel script found!");
-  process.exit(1);
-}
+const scriptStart = html.indexOf('<script type="text/babel">') + 26;
+const scriptEnd = html.lastIndexOf('</script>');
+const code = html.slice(scriptStart, scriptEnd);
 
 try {
-  babel.transformSync(scriptMatch[1], {
-    presets: ['@babel/preset-react']
+  babel.transformSync(code, {
+    presets: ['@babel/preset-react'],
+    filename: 'index.jsx'
   });
-  console.log("Babel parse successful");
-} catch(e) {
-  console.error(e);
+  console.log('Babel syntax check passed!');
+} catch (e) {
+  console.error('Babel syntax check failed:', e.message);
   process.exit(1);
 }
