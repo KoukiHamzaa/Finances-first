@@ -1,0 +1,81 @@
+      const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId) => {
+        setIsEnriching(true);
+        setEnrichProgress({ current: 0, total: rowsToEnrich.length, errors: 0 });
+        
+        let current = 0;
+        let errors = 0;
+        let updatedRowsPart = [];
+        let isFirstSuccess = true;
+        let throttleDelay = 30;
+        
+        const listJoinMap = new Map();
+        try {
+           const res = await fetch(`https://api.intigo.net/api/v3/parcels/`, { headers: { 'X-API-Key': apiKey }});
+           if (res.ok) {
+              const jsonData = await res.json();
+              let arr = jsonData.data || jsonData.parcels || jsonData.result || [];
+              if (!Array.isArray(arr)) arr = [arr];
+              let loggedList = false;
+              for (const p of arr) {
+                 if (!p) continue;
+                 
+                 if (!loggedList) {
+                    try {
+                       console.log('🔍 Intigo LIST shape:', JSON.stringify(jsonData).slice(0,800));
+                       console.log('🔍 Intigo LIST first parcel keys:', Object.keys(p));
+                    } catch(e) {}
+                    loggedList = true;
+                 }
+                 
+                 const n = String(p.nid || p.id || p.tracking || '').trim();
+                 if (!n) continue;
+                 const _rn = p.description || p.product_name || p.name || p.content || p.item_name || '';
+const productName = typeof _rn === 'string' ? _rn.replace(/^\[GENERATED_NAME\]\s*/i, '') : null;
+                 const fetchedPhone = p.client_phone || p.customer_phone || p.phone || p.receiver_phone || p.telephone || '';
+                 if (isValidName(productName)) {
+                    listJoinMap.set(n, { description: productName.trim(), phone: fetchedPhone });
+                 }
+              }
+           }
+        } catch (e) {}
+        
+        for (let i = 0; i < rowsToEnrich.length; i++) {
+          if (uploadId !== currentUploadId.current) break;
+          
+          const row = { ...rowsToEnrich[i] };
+          if (!row.needsEnrichment) continue;
+          
+          let success = false;
+          let name = 'منتج غير معروف';
+          let phoneToSet = '';
+          
+          if (listJoinMap.has(row.nid)) {
+             const m = listJoinMap.get(row.nid);
+             name = m.description;
+             phoneToSet = m.phone;
+             success = true;
+          } else {
+             const cached = getCachedName(row.nid);
+             if (cached) {
+                name = cached.description;
+                phoneToSet = cached.phone || '';
+                success = true;
+             }
+          }
+          
+          if (!success) {
+              await new Promise(r => setTimeout(r, throttleDelay));
+              
+              let retries = 3;
+              while (retries > 0 && !success) {
+                if (uploadId !== currentUploadId.current) break;
+                try {
+                  const res = await fetch(`https://api.intigo.net/api/v3/parcels/${encodeURIComponent(row.nid)}`, {
+                    headers: { 'X-API-Key': apiKey }
+                  });
+                  
+                  if (res.status === 401) {
+                    setError('مفتاح API غير صالح. يرجى التحقق من الإعدادات.');
+                    setHealthStatus('unauthorized');
+                    row.enrichState = 'error';
+                    name = 'مفتاح API غير صالح';

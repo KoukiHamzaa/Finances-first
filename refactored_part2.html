@@ -562,6 +562,28 @@
         
       return { rows: parsed, autoFees: null, isIntigo: true, duplicateNids: [...new Set(duplicateNids)] };
     }
+
+    function useCountUp(val, duration = 400) {
+      const [current, setCurrent] = useState(val);
+      useEffect(() => {
+        if (current === val) return;
+        const start = performance.now();
+        const startVal = current;
+        const endVal = val;
+        
+        const tick = (now) => {
+          const progress = Math.min((now - start) / duration, 1);
+          const easeOut = 1 - Math.pow(1 - progress, 3);
+          setCurrent(startVal + (endVal - startVal) * easeOut);
+          if (progress < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }, [val, duration]);
+      return current;
+    }
+
+    const APP_VERSION = 'v1.0';
+    
 const APP_VERSION = 'v1.0';
 const CACHE_KEY_PREFIX = 'intigo_nid_';
 const isValidName = (name) => {
@@ -655,7 +677,7 @@ const calculateStats = (rows, fees) => {
 const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
         const { setIsEnriching, setEnrichProgress, setError, setHealthStatus, onBatchResolved, checkIsCancelled } = callbacks;
         setIsEnriching(true);
-        progressStore.set({ current: 0, total: 0, errors: 0 });
+        setEnrichProgress({ current: 0, total: rowsToEnrich.length, errors: 0 });
         
         let current = 0;
         let errors = 0;
@@ -712,8 +734,16 @@ const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
                        batch.push(rem);
                     }
 
-                    onBatchResolved(batch);
-                    progressStore.set({ current, total: rowsToEnrich.length, errors });
+                    const updateArr = (arr) => arr.map(pr => {
+                       const updated = batch.find(ur => ur.id === pr.id);
+                       return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
+                    });
+                    
+                    setMasterRows(prev => updateArr(prev));
+                    setCakadoRows(prev => updateArr(prev));
+                    setBalkisRows(prev => updateArr(prev));
+                    
+                    setEnrichProgress({ current: current + 1, total: rowsToEnrich.length, errors: errors + 1 });
                     setIsEnriching(false);
                     return;
                   }
@@ -816,10 +846,17 @@ const productName = typeof _rawName === 'string' ? _rawName.replace(/^\[GENERATE
           if (updatedRowsPart.length >= 10 || current === rowsToEnrich.length) {
             const batch = [...updatedRowsPart];
             
-            onBatchResolved(batch);
+            const updateArr = (arr) => arr.map(pr => {
+               const updated = batch.find(ur => ur.id === pr.id);
+               return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
+            });
+            
+            setMasterRows(prev => updateArr(prev));
+            setCakadoRows(prev => updateArr(prev));
+            setBalkisRows(prev => updateArr(prev));
             
             updatedRowsPart = [];
-            progressStore.set({ current, total: rowsToEnrich.length, errors });
+            setEnrichProgress({ current, total: rowsToEnrich.length, errors });
           }
         }
         
@@ -827,47 +864,6 @@ const productName = typeof _rawName === 'string' ? _rawName.replace(/^\[GENERATE
            setIsEnriching(false);
         }
       }
-
-const progressStore = {
-  listeners: new Set(),
-  state: { current: 0, total: 0, errors: 0 },
-  emit() { this.listeners.forEach(l => l()); },
-  subscribe(l) { this.listeners.add(l); return () => this.listeners.delete(l); },
-  set(state) { this.state = state; this.emit(); },
-  get() { return this.state; }
-};
-
-async function checkHealth(key, setHealthStatus) {
-
-        if (!key) { setHealthStatus('unauthorized'); return; }
-        setHealthStatus('checking');
-        try {
-           let res = await fetch('https://api.intigo.net/api/v3/health', { headers: { 'X-API-Key': key } });
-           if (res.status === 401) {
-              setHealthStatus('unauthorized');
-              return;
-           }
-           if (res.ok) {
-              setHealthStatus('connected');
-              return;
-           }
-           if (res.status === 404) {
-              res = await fetch('https://api.intigo.net/health', { headers: { 'X-API-Key': key } });
-              if (res.ok) {
-                 setHealthStatus('connected');
-                 return;
-              }
-              if (res.status === 404) {
-                 setHealthStatus('endpoint_unknown');
-                 return;
-              }
-           }
-           setHealthStatus('offline');
-        } catch (e) {
-           setHealthStatus('offline');
-        }
-      
-}
 </script>
 <script type="text/babel">
 const { useState, useCallback, useMemo, useRef, useEffect, startTransition } = React;
@@ -993,6 +989,14 @@ const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart }
          prevProps.row.city === nextProps.row.city;
 });
 
+const progressStore = {
+  listeners: new Set(),
+  state: { current: 0, total: 0, errors: 0 },
+  emit() { this.listeners.forEach(l => l()); },
+  subscribe(l) { this.listeners.add(l); return () => this.listeners.delete(l); },
+  set(state) { this.state = state; this.emit(); },
+  get() { return this.state; }
+};
 
 const EnrichmentProgress = () => {
   const [progress, setProgress] = useState(progressStore.get());
@@ -1054,18 +1058,6 @@ const AnimatedNumber = React.memo(({ value }) => {
 });
 
 function App() {
-
-  // Splash fade out
-  useEffect(() => {
-    const splash = document.getElementById('boot-splash');
-    if (splash) {
-      requestAnimationFrame(() => {
-        splash.style.transition = 'opacity 0.6s ease';
-        splash.style.opacity = '0';
-        setTimeout(() => splash.remove(), 600);
-      });
-    }
-  }, []);
       // Three separate state arrays
       const [masterRows, setMasterRows] = useState([]);
       const [cakadoRows, setCakadoRows] = useState([]);
@@ -1142,18 +1134,40 @@ function App() {
       const [unrecognizedStatuses, setUnrecognizedStatuses] = useState([]);
       const [healthStatus, setHealthStatus] = useState('checking');
       
-      
+      const checkHealth = useCallback(async (key) => {
+        if (!key) { setHealthStatus('unauthorized'); return; }
+        setHealthStatus('checking');
+        try {
+           let res = await fetch('https://api.intigo.net/api/v3/health', { headers: { 'X-API-Key': key } });
+           if (res.status === 401) {
+              setHealthStatus('unauthorized');
+              return;
+           }
+           if (res.ok) {
+              setHealthStatus('connected');
+              return;
+           }
+           if (res.status === 404) {
+              res = await fetch('https://api.intigo.net/health', { headers: { 'X-API-Key': key } });
+              if (res.ok) {
+                 setHealthStatus('connected');
+                 return;
+              }
+              if (res.status === 404) {
+                 setHealthStatus('endpoint_unknown');
+                 return;
+              }
+           }
+           setHealthStatus('offline');
+        } catch (e) {
+           setHealthStatus('offline');
+        }
+      }, []);
       
       useEffect(() => {
-         const t = setTimeout(() => { 
-            if ('requestIdleCallback' in window) {
-                window.requestIdleCallback(() => checkHealth(intigoApiKey, setHealthStatus));
-            } else {
-                checkHealth(intigoApiKey, setHealthStatus);
-            }
-         }, 500);
+         const t = setTimeout(() => { checkHealth(intigoApiKey); }, 500);
          return () => clearTimeout(t);
-      }, [intigoApiKey]);
+      }, [intigoApiKey, checkHealth]);
 
       const resetSession = useCallback(() => {
         currentUploadId.current += 1;
@@ -1168,7 +1182,7 @@ function App() {
         setSortOption('default');
         setSelectedIds(new Set());
         setIsEnriching(false);
-        progressStore.set({ current: 0, total: 0, errors: 0 });
+        setEnrichProgress({ current: 0, total: 0, errors: 0 });
         setCakadoFees({ delivery: 0, return: 0 });
         setBalkisFees({ delivery: 0, return: 0 });
         setShowResetModal(false);
@@ -1211,21 +1225,7 @@ function App() {
             setCakadoRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
             setBalkisRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
             
-            const thisUploadId = currentUploadId.current; setTimeout(() => enrichIntigoRows(allToEnrich, intigoApiKey, thisUploadId, {
-    setIsEnriching,
-    setHealthStatus,
-    setError,
-    checkIsCancelled: function() { return thisUploadId !== currentUploadId.current; }, 
-    onBatchResolved: (batch) => {
-        const updateArr = (arr) => arr.map(pr => {
-            const updated = batch.find(ur => ur.id === pr.id);
-            return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
-        });
-        setMasterRows(prev => updateArr(prev));
-        setCakadoRows(prev => updateArr(prev));
-        setBalkisRows(prev => updateArr(prev));
-    }
-}), 0);
+            setTimeout(() => enrichIntigoRows(allToEnrich, intigoApiKey, currentUploadId.current), 0);
          }
       };
       ;
@@ -1282,21 +1282,7 @@ function App() {
         setCakadoRows(prev => updateArr(prev));
         setBalkisRows(prev => updateArr(prev));
 
-        const thisUploadId = currentUploadId.current; enrichIntigoRows([{ ...row, needsEnrichment: true }], intigoApiKey, thisUploadId, {
-    setIsEnriching,
-    setHealthStatus,
-    setError,
-    checkIsCancelled: function() { return thisUploadId !== currentUploadId.current; }, 
-    onBatchResolved: (batch) => {
-        const updateArr = (arr) => arr.map(pr => {
-            const updated = batch.find(ur => ur.id === pr.id);
-            return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
-        });
-        setMasterRows(prev => updateArr(prev));
-        setCakadoRows(prev => updateArr(prev));
-        setBalkisRows(prev => updateArr(prev));
-    }
-});
+        enrichIntigoRows([{ ...row, needsEnrichment: true }], intigoApiKey, currentUploadId.current);
       };
 
       const handleFileUpload = useCallback((file) => {
@@ -1352,23 +1338,7 @@ function App() {
               } else {
                 const pendingRows = result.rows.map(r => ({ ...r, enrichState: 'pending', needsEnrichment: true, hasError: false, productName: 'جاري الجلب...' }));
                 setMasterRows(pendingRows);
-                
-enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
-    setIsEnriching,
-    setHealthStatus,
-    setError,
-    checkIsCancelled: () => thisUploadId !== currentUploadId.current,
-    onBatchResolved: (batch) => {
-        const updateArr = (arr) => arr.map(pr => {
-            const updated = batch.find(ur => ur.id === pr.id);
-            return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
-        });
-        setMasterRows(prev => updateArr(prev));
-        setCakadoRows(prev => updateArr(prev));
-        setBalkisRows(prev => updateArr(prev));
-    }
-});
-
+                enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId);
               }
             }
           } catch (err) {
@@ -1600,7 +1570,13 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
           )}
         </div>
       );
-const BrandSummaryCard = ({ title, stats }) => (
+
+      const AnimatedNumber = ({ value }) => {
+        const displayValue = useCountUp(value, 400);
+        return <>{formatTND(displayValue)}</>;
+      };
+
+      const BrandSummaryCard = ({ title, stats }) => (
         <div className="bg-surface rounded-xl shadow-sm border border-line p-5 flex-1 flex flex-col justify-between surface-highlight transition-all">
           <h3 className="text-lg font-display text-ink mb-4">{title}</h3>
           <div className="flex flex-col gap-3">

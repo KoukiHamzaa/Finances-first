@@ -1,185 +1,5 @@
-<!DOCTYPE html>
-<html lang="ar">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>لوحة إدارة الطلبات</title>
-  <script>
-    (function() {
-      var stored = localStorage.getItem('recon-theme');
-      var theme = stored ? stored : 'light';
-      document.documentElement.setAttribute('data-theme', theme);
-    })();
-  </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@700&family=Sora:wght@400;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
-  
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Tajawal', 'Sora', 'sans-serif'],
-            mono: ['Sora', 'monospace'],
-            display: ['"Reem Kufi"', 'sans-serif'],
-          },
-          colors: {
-            bg: 'var(--bg)',
-            surface: 'var(--surface)',
-            'surface-2': 'var(--surface-2)',
-            ink: 'var(--ink)',
-            'ink-soft': 'var(--ink-soft)',
-            'ink-faint': 'var(--ink-faint)',
-            line: 'var(--line)',
-            brand: 'var(--brand)',
-            pos: 'var(--pos)',
-            neg: 'var(--neg)',
-            warn: 'var(--warn)',
-          }
-        }
-      }
-    }
-  </script>
-  <style>
-    :root {
-      --bg: #ECEFF3;
-      --vignette: radial-gradient(circle at top, rgba(0,0,0,0.03), transparent 60%);
-      --surface: #FFFFFF;
-      --surface-2: #F6F8FA;
-      --ink: #0B1220;
-      --ink-soft: #475063;
-      --ink-faint: #8A93A3;
-      --line: #E2E7EE;
-      --brand: #0F766E;
-      --pos: #059669;
-      --neg: #E11D48;
-      --warn: #D97706;
-      --bg-grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    }
-    
-    [data-theme="console"] {
-      --bg: #0B1118;
-      --vignette: radial-gradient(circle at top, rgba(255,255,255,0.03), transparent 60%);
-      --surface: #121A24;
-      --surface-2: #0E1620;
-      --ink: #E6EDF3;
-      --ink-soft: #9AA7B6;
-      --ink-faint: #6E7A8A;
-      --line: #1E2A37;
-      --brand: #2DD4BF;
-      --pos: #34D399;
-      --neg: #FB7185;
-      --warn: #FBBF24;
-    }
-    
-    body {
-      background-color: var(--bg);
-      color: var(--ink);
-      font-family: 'Tajawal', 'Sora', sans-serif;
-      position: relative;
-      transition: background-color 0.25s ease, color 0.25s ease;
-    }
-    
-    body::before {
-      content: "";
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-image: var(--bg-grain);
-      opacity: 0.04;
-      pointer-events: none;
-      z-index: -1;
-    }
-    body::after {
-      content: "";
-      position: fixed;
-      top: 0; left: 0; right: 0; height: 100vh;
-      background: var(--vignette);
-      pointer-events: none;
-      z-index: -1;
-    }
-    
-    .hide-scrollbar::-webkit-scrollbar { display: none; }
-    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    
-    /* Custom Scrollbars */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: var(--line);
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--ink-faint);
-    }
-    
-    .tabular-nums { font-variant-numeric: tabular-nums; }
-    
-    @media (prefers-reduced-motion: reduce) {
-      *, ::before, ::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
-      }
-    }
-    
-    /* Sheen animation */
-    @keyframes sweep {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(200%); }
-    }
-    .sheen::after {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
-      animation: sweep 6s infinite linear;
-      pointer-events: none;
-    }
-    
-    [data-theme="console"] .surface-highlight {
-      border-top: 1px solid rgba(255,255,255,0.08);
-      box-shadow: none;
-    }
-    .surface-highlight {
-      border-top: 1px solid rgba(255,255,255,0.8);
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-    }
-  </style>
-</head>
-<body class="min-h-screen">
-  
-<div id="boot-splash" style="position:fixed;inset:0;z-index:9999;background-color:#ECEFF3;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Reem Kufi', sans-serif;">
-  <div style="font-size:24px;font-weight:700;color:#0B1220;margin-bottom:24px;">لوحة إدارة الطلبات</div>
-  <div style="width:200px;height:4px;background-color:rgba(15, 118, 110, 0.2);border-radius:2px;overflow:hidden;position:relative;">
-    <div id="splash-progress" style="position:absolute;left:0;top:0;height:100%;width:40%;background-color:#0F766E;border-radius:2px;transition:left 0.5s ease-in-out;"></div>
-  </div>
-  <style>
-    @keyframes sweep {
-      0% { left: -40%; }
-      100% { left: 100%; }
-    }
-    #splash-progress {
-      animation: sweep 1.5s infinite ease-in-out;
-    }
-  </style>
-  <div style="margin-top:12px;font-size:12px;color:#0B1220;opacity:0.7;font-family:'Tajawal', sans-serif;">جارٍ التحميل…</div>
-</div>
-
-    <div id="root" dir="rtl"></div>
-  <script>
-    
+<script type="text/babel">
+    const { useState, useCallback, useMemo, useRef, useEffect } = React;
 
     const round3 = (x) => {
       const n = Math.round((Number(x) || 0) * 1000) / 1000;
@@ -562,16 +382,206 @@
         
       return { rows: parsed, autoFees: null, isIntigo: true, duplicateNids: [...new Set(duplicateNids)] };
     }
-const APP_VERSION = 'v1.0';
-const CACHE_KEY_PREFIX = 'intigo_nid_';
-const isValidName = (name) => {
+
+    function useCountUp(val, duration = 400) {
+      const [current, setCurrent] = useState(val);
+      useEffect(() => {
+        if (current === val) return;
+        const start = performance.now();
+        const startVal = current;
+        const endVal = val;
+        
+        const tick = (now) => {
+          const progress = Math.min((now - start) / duration, 1);
+          const easeOut = 1 - Math.pow(1 - progress, 3);
+          setCurrent(startVal + (endVal - startVal) * easeOut);
+          if (progress < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }, [val, duration]);
+      return current;
+    }
+
+    const APP_VERSION = 'v1.0';
+    function App() {
+      // Three separate state arrays
+      const [masterRows, setMasterRows] = useState([]);
+      const [cakadoRows, setCakadoRows] = useState([]);
+      const [balkisRows, setBalkisRows] = useState([]);
+      
+      const [selectedIds, setSelectedIds] = useState(new Set());
+      const [error, setError] = useState(null);
+      const [autoFeesInfo, setAutoFeesInfo] = useState(null);
+
+      // Presentational Derived View States
+      const [searchQuery, setSearchQuery] = useState('');
+      const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'delivered', 'returned', 'error'
+      const [sortOption, setSortOption] = useState('default'); // 'default', 'price-desc', 'price-asc', 'city', 'status', 'product'
+      const [activeCarrier, setActiveCarrier] = useState(null);
+
+      // Theme toggle
+      const [theme, setTheme] = useState(() => {
+        const stored = localStorage.getItem('recon-theme');
+        if (stored) return stored;
+        return 'light';
+      });
+
+      useEffect(() => {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('recon-theme', theme);
+      }, [theme]);
+      
+      useEffect(() => {
+        const handleBeforeUnload = (e) => {
+          if (masterRows.length > 0 || cakadoRows.length > 0 || balkisRows.length > 0) {
+            e.preventDefault();
+            e.returnValue = '';
+          }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+      }, [masterRows.length, cakadoRows.length, balkisRows.length]);
+
+      const toggleTheme = () => setTheme(t => t === 'light' ? 'console' : 'light');
+
+      // Intigo State
+      const [intigoApiKey, setIntigoApiKey] = useState(localStorage.getItem('intigoApiKey') || '');
+      const [isEnriching, setIsEnriching] = useState(false);
+      const [enrichProgress, setEnrichProgress] = useState({ current: 0, total: 0, errors: 0 });
+      const currentUploadId = useRef(0);
+      const [scrollPos, setScrollPos] = useState({ top: true, bottom: false });
+      
+      useEffect(() => {
+         const handleScroll = () => {
+            const isTop = window.scrollY < 100;
+            const isBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100;
+            setScrollPos({ top: isTop, bottom: isBottom });
+         };
+         window.addEventListener('scroll', handleScroll, { passive: true });
+         handleScroll();
+         // observe DOM changes to update bottom detection
+         const observer = new MutationObserver(handleScroll);
+         observer.observe(document.body, { childList: true, subtree: true });
+         return () => {
+            window.removeEventListener('scroll', handleScroll);
+            observer.disconnect();
+         };
+      }, []);
+      
+      const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+      const scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      const [showResetModal, setShowResetModal] = useState(false);
+
+      // Per-Brand Fee Structure
+      const [cakadoFees, setCakadoFees] = useState({ delivery: 0, return: 0 });
+      const [balkisFees, setBalkisFees] = useState({ delivery: 0, return: 0 });
+
+            const [dismissedUnknownGovs, setDismissedUnknownGovs] = useState(false);
+      const [duplicateNids, setDuplicateNids] = useState([]);
+      const [unrecognizedStatuses, setUnrecognizedStatuses] = useState([]);
+      const [healthStatus, setHealthStatus] = useState('checking');
+      
+      const checkHealth = useCallback(async (key) => {
+        if (!key) { setHealthStatus('unauthorized'); return; }
+        setHealthStatus('checking');
+        try {
+           let res = await fetch('https://api.intigo.net/api/v3/health', { headers: { 'X-API-Key': key } });
+           if (res.status === 401) {
+              setHealthStatus('unauthorized');
+              return;
+           }
+           if (res.ok) {
+              setHealthStatus('connected');
+              return;
+           }
+           if (res.status === 404) {
+              res = await fetch('https://api.intigo.net/health', { headers: { 'X-API-Key': key } });
+              if (res.ok) {
+                 setHealthStatus('connected');
+                 return;
+              }
+              if (res.status === 404) {
+                 setHealthStatus('endpoint_unknown');
+                 return;
+              }
+           }
+           setHealthStatus('offline');
+        } catch (e) {
+           setHealthStatus('offline');
+        }
+      }, []);
+      
+      useEffect(() => {
+         const t = setTimeout(() => { checkHealth(intigoApiKey); }, 500);
+         return () => clearTimeout(t);
+      }, [intigoApiKey, checkHealth]);
+
+      const resetSession = useCallback(() => {
+        currentUploadId.current += 1;
+        setMasterRows([]);
+        setCakadoRows([]);
+        setBalkisRows([]);
+        setActiveCarrier(null);
+        setAutoFeesInfo(null);
+        setError(null);
+        setSearchQuery('');
+        setFilterStatus('all');
+        setSortOption('default');
+        setSelectedIds(new Set());
+        setIsEnriching(false);
+        setEnrichProgress({ current: 0, total: 0, errors: 0 });
+        setCakadoFees({ delivery: 0, return: 0 });
+        setBalkisFees({ delivery: 0, return: 0 });
+        setShowResetModal(false);
+                setDuplicateNids([]);
+        setUnrecognizedStatuses([]);
+        setDismissedUnknownGovs(false);
+      }, []);
+
+      const handleNewCompanyClick = () => {
+        const isDirty = masterRows.length > 0 || cakadoRows.length > 0 || balkisRows.length > 0 || activeCarrier || isEnriching;
+        if (isDirty) {
+          setShowResetModal(true);
+        } else {
+          resetSession();
+        }
+      };
+
+      const CACHE_KEY_PREFIX = 'intigo_nid_';
+      
+      const isValidName = (name) => {
          if (!name || typeof name !== 'string') return false;
          const t = name.replace(/^\[GENERATED_NAME\]\s*/i, '').trim().toLowerCase();
          if (!t) return false;
          const invalid = ["منتج بدون اسم","منتج غير معروف","بدون اسم","غير معروف","unknown","n/a","na","-","—","colis"];
          return !invalid.includes(t);
-      }
-const getCachedName = (nid) => {
+      };
+
+      const handleClearCache = () => {
+         const keysToRemove = [];
+         for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(CACHE_KEY_PREFIX)) {
+               keysToRemove.push(key);
+            }
+         }
+         keysToRemove.forEach(k => localStorage.removeItem(k));
+         
+         if (activeCarrier === 'INTIGO') {
+            if (!intigoApiKey || !intigoApiKey.trim()) {
+               setError('أدخل مفتاح Intigo API لجلب أسماء المنتجات من الخادم.');
+               return;
+            }
+            const updateArr = (arr) => arr.map(r => ({ ...r, needsEnrichment: true, enrichState: 'pending', productName: 'جاري الجلب...' }));
+            let allToEnrich = [];
+            setMasterRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
+            setCakadoRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
+            setBalkisRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
+            
+            setTimeout(() => enrichIntigoRows(allToEnrich, intigoApiKey, currentUploadId.current), 0);
+         }
+      };
+      const getCachedName = (nid) => {
         try {
            const val = localStorage.getItem(CACHE_KEY_PREFIX + nid);
            if (val) {
@@ -583,79 +593,18 @@ const getCachedName = (nid) => {
            }
         } catch (e) {}
         return null;
-      }
-const setCachedName = (nid, data) => {
+      };
+      
+      const setCachedName = (nid, data) => {
          if (!isValidName(data.description)) return;
          try {
             localStorage.setItem(CACHE_KEY_PREFIX + nid, JSON.stringify({ ...data, fetchedAt: Date.now() }));
          } catch(e) {}
-      }
-const calculateStats = (rows, fees) => {
-        let totalSales = 0;
-        let totalRuleFeeDelivery = 0;
-        let totalRuleFeeReturn = 0;
-        let totalCarrierFee = 0;
-        let hasCarrierFee = false;
-        
-        let prepaidCount = 0;
-        let counts = { delivered: 0, returned: 0, in_progress: 0, cancelled: 0, exchange: 0 };
-        
-        const newUnknownGovs = [];
+      };
 
-        rows.forEach(row => {
-          if (counts[row.status] !== undefined) counts[row.status]++;
-          
-          if (row.carrier_fee != null) {
-            hasCarrierFee = true;
-            totalCarrierFee += row.carrier_fee;
-          }
-          
-          if (row.status === 'delivered') {
-             if (row.totalSales === 0) prepaidCount++;
-             totalSales += row.totalSales;
-             
-             let rf = (row.carrier === 'INTIGO') ? 7 : (fees.delivery || 0);
-             row.rule_fee = rf;
-             totalRuleFeeDelivery += rf;
-          } else if (row.status === 'returned') {
-             let rf = fees.return || 0;
-             if (row.carrier === 'INTIGO') {
-                const govInfo = resolveGov(row.city);
-                rf = govInfo.isGrandTunis ? 1 : 2;
-                if (govInfo.unknown) newUnknownGovs.push(govInfo.raw);
-             }
-             row.rule_fee = rf;
-             totalRuleFeeReturn += rf;
-          } else {
-             row.rule_fee = 0;
-          }
-          
-          if (row.carrier_fee != null) {
-             row.fee_delta = round3(row.carrier_fee - row.rule_fee);
-          }
-        });
-        
-        const netRule = totalSales - totalRuleFeeDelivery - totalRuleFeeReturn;
-        const netCarrier = hasCarrierFee ? (totalSales - totalCarrierFee) : null;
-        
-        return { 
-           totalSales: round3(totalSales), 
-           totalRuleFeeDelivery: round3(totalRuleFeeDelivery), 
-           totalRuleFeeReturn: round3(totalRuleFeeReturn), 
-           netRule: round3(netRule), 
-           netCarrier: hasCarrierFee ? round3(netCarrier) : null,
-           hasCarrierFee,
-           count: rows.length,
-           counts,
-           prepaidCount,
-           newUnknownGovs: [...new Set(newUnknownGovs)]
-        };
-      }
-
-const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
-        const { setIsEnriching, setEnrichProgress, setError, setHealthStatus, onBatchResolved, checkIsCancelled } = callbacks;
+      const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId) => {
         setIsEnriching(true);
-        progressStore.set({ current: 0, total: 0, errors: 0 });
+        setEnrichProgress({ current: 0, total: rowsToEnrich.length, errors: 0 });
         
         let current = 0;
         let errors = 0;
@@ -663,10 +612,39 @@ const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
         let isFirstSuccess = true;
         let throttleDelay = 30;
         
-        
+        const listJoinMap = new Map();
+        try {
+           const res = await fetch(`https://api.intigo.net/api/v3/parcels/`, { headers: { 'X-API-Key': apiKey }});
+           if (res.ok) {
+              const jsonData = await res.json();
+              let arr = jsonData.data || jsonData.parcels || jsonData.result || [];
+              if (!Array.isArray(arr)) arr = [arr];
+              let loggedList = false;
+              for (const p of arr) {
+                 if (!p) continue;
+                 
+                 if (!loggedList) {
+                    try {
+                       console.log('🔍 Intigo LIST shape:', JSON.stringify(jsonData).slice(0,800));
+                       console.log('🔍 Intigo LIST first parcel keys:', Object.keys(p));
+                    } catch(e) {}
+                    loggedList = true;
+                 }
+                 
+                 const n = String(p.nid || p.id || p.tracking || '').trim();
+                 if (!n) continue;
+                 const _rn = p.description || p.product_name || p.name || p.content || p.item_name || '';
+const productName = typeof _rn === 'string' ? _rn.replace(/^\[GENERATED_NAME\]\s*/i, '') : null;
+                 const fetchedPhone = p.client_phone || p.customer_phone || p.phone || p.receiver_phone || p.telephone || '';
+                 if (isValidName(productName)) {
+                    listJoinMap.set(n, { description: productName.trim(), phone: fetchedPhone });
+                 }
+              }
+           }
+        } catch (e) {}
         
         for (let i = 0; i < rowsToEnrich.length; i++) {
-          if (checkIsCancelled()) break;
+          if (uploadId !== currentUploadId.current) break;
           
           const row = { ...rowsToEnrich[i] };
           if (!row.needsEnrichment) continue;
@@ -675,7 +653,12 @@ const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
           let name = 'منتج غير معروف';
           let phoneToSet = '';
           
-          if (false) {} else {
+          if (listJoinMap.has(row.nid)) {
+             const m = listJoinMap.get(row.nid);
+             name = m.description;
+             phoneToSet = m.phone;
+             success = true;
+          } else {
              const cached = getCachedName(row.nid);
              if (cached) {
                 name = cached.description;
@@ -689,7 +672,7 @@ const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
               
               let retries = 3;
               while (retries > 0 && !success) {
-                if (checkIsCancelled()) break;
+                if (uploadId !== currentUploadId.current) break;
                 try {
                   const res = await fetch(`https://api.intigo.net/api/v3/parcels/${encodeURIComponent(row.nid)}`, {
                     headers: { 'X-API-Key': apiKey }
@@ -712,8 +695,16 @@ const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
                        batch.push(rem);
                     }
 
-                    onBatchResolved(batch);
-                    progressStore.set({ current, total: rowsToEnrich.length, errors });
+                    const updateArr = (arr) => arr.map(pr => {
+                       const updated = batch.find(ur => ur.id === pr.id);
+                       return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
+                    });
+                    
+                    setMasterRows(prev => updateArr(prev));
+                    setCakadoRows(prev => updateArr(prev));
+                    setBalkisRows(prev => updateArr(prev));
+                    
+                    setEnrichProgress({ current: current + 1, total: rowsToEnrich.length, errors: errors + 1 });
                     setIsEnriching(false);
                     return;
                   }
@@ -816,423 +807,24 @@ const productName = typeof _rawName === 'string' ? _rawName.replace(/^\[GENERATE
           if (updatedRowsPart.length >= 10 || current === rowsToEnrich.length) {
             const batch = [...updatedRowsPart];
             
-            onBatchResolved(batch);
+            const updateArr = (arr) => arr.map(pr => {
+               const updated = batch.find(ur => ur.id === pr.id);
+               return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
+            });
+            
+            setMasterRows(prev => updateArr(prev));
+            setCakadoRows(prev => updateArr(prev));
+            setBalkisRows(prev => updateArr(prev));
             
             updatedRowsPart = [];
-            progressStore.set({ current, total: rowsToEnrich.length, errors });
+            setEnrichProgress({ current, total: rowsToEnrich.length, errors });
           }
         }
         
         if (uploadId === currentUploadId.current) {
            setIsEnriching(false);
         }
-      }
-
-const progressStore = {
-  listeners: new Set(),
-  state: { current: 0, total: 0, errors: 0 },
-  emit() { this.listeners.forEach(l => l()); },
-  subscribe(l) { this.listeners.add(l); return () => this.listeners.delete(l); },
-  set(state) { this.state = state; this.emit(); },
-  get() { return this.state; }
-};
-
-async function checkHealth(key, setHealthStatus) {
-
-        if (!key) { setHealthStatus('unauthorized'); return; }
-        setHealthStatus('checking');
-        try {
-           let res = await fetch('https://api.intigo.net/api/v3/health', { headers: { 'X-API-Key': key } });
-           if (res.status === 401) {
-              setHealthStatus('unauthorized');
-              return;
-           }
-           if (res.ok) {
-              setHealthStatus('connected');
-              return;
-           }
-           if (res.status === 404) {
-              res = await fetch('https://api.intigo.net/health', { headers: { 'X-API-Key': key } });
-              if (res.ok) {
-                 setHealthStatus('connected');
-                 return;
-              }
-              if (res.status === 404) {
-                 setHealthStatus('endpoint_unknown');
-                 return;
-              }
-           }
-           setHealthStatus('offline');
-        } catch (e) {
-           setHealthStatus('offline');
-        }
-      
-}
-</script>
-<script type="text/babel">
-const { useState, useCallback, useMemo, useRef, useEffect, startTransition } = React;
-
-const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart }) => {
-
-                const govInfo = resolveGov(row.city);
-                
-                const statusPills = {
-                  'delivered': { label: 'مُسلّم', colors: 'bg-pos/10 text-pos' },
-                  'returned': { label: 'مسترجع', colors: 'bg-neg/10 text-neg' },
-                  'cancelled': { label: 'ملغي', colors: 'bg-ink-faint/10 text-ink-faint line-through' },
-                  'exchange': { label: 'تبادل', colors: 'bg-warn/10 text-warn' },
-                  'in_progress': { label: 'قيد التنفيذ', colors: 'bg-brand/10 text-brand' },
-                  'return_in_progress': { label: 'إرجاع قيد التنفيذ', colors: 'bg-brand/10 text-brand' },
-                  'other': { label: 'أخرى', colors: 'bg-surface-2 text-ink-soft' }
-                };
-                const pill = statusPills[row.status] || statusPills['other'];
-
-                
-  return (
-    <div
-                    key={row.id}
-                    draggable
-                    onDragStart={(e) => onDragStart(e, row.id)}
-                    onClick={selectable ? (e) => onToggle(e, row.id) : undefined}
-                    className={`bg-surface border p-3 rounded-xl shadow-sm transition-all duration-200 group relative
-                      ${selectable ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : 'cursor-grab active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-md'} 
-                      ${selectedIds.has(row.id) ? 'border-brand ring-1 ring-brand bg-brand/5' : 'border-line'}
-                    `}
-                    style={i < 12 ? { animation: `fadeInUp 0.3s ease-out ${i * 0.03}s both` } : {}}
-                  >
-                    <div className="flex items-start gap-3">
-                      {selectable && (
-                        <input 
-                           type="checkbox" 
-                           className="w-5 h-5 mt-0.5 rounded cursor-pointer accent-brand"
-                          checked={selected}
-                          onChange={(e) => onToggle(e, row.id)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      )}
-                      <div className="flex-1 min-w-0 flex flex-col gap-2">
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex items-start gap-2 min-w-0">
-                            {row.carrier === 'INTIGO' && (
-                               <span className="flex-shrink-0 mt-0.5" title={row.enrichState === 'fetched' ? 'تم جلب الاسم' : row.enrichState === 'blocked' ? 'بانتظار المفتاح' : row.enrichState === 'not_found' ? 'لم يُعثر على المنتج' : row.enrichState === 'error' ? 'فشل الطلب — أعد المحاولة' : 'جاري الجلب...'}>
-                                  {row.enrichState === 'fetched' ? <span className="text-pos">✓</span> :
-                                   (row.enrichState === 'blocked' || row.enrichState === 'not_found') ? <span className="text-warn">⚠</span> :
-                                   row.enrichState === 'error' ? <span className="text-neg">✗</span> :
-                                   <span className="text-brand animate-pulse">⏳</span>}
-                               </span>
-                            )}
-                            <span className="font-medium text-[14px] text-ink leading-tight flex flex-wrap items-center gap-1">
-                               {row.productName}
-                               {row.carrier === 'INTIGO' && String(row.productName).trim().toLowerCase() === 'colis' && (
-                                  <span className="text-warn text-[10px] ml-1 flex items-center" title="الوصف افتراضي من Intigo — لم يُحدَّد اسم منتج">⚠</span>
-                               )}
-                            </span>
-                          </div>
-                          <span className="font-mono font-bold text-ink tabular-nums whitespace-nowrap text-[14px]" dir="ltr">
-                            {row.status === 'delivered' ? formatTND(row.totalSales) : <span className="text-ink-faint">—</span>}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                          <span className="font-mono text-ink-faint uppercase tracking-wider bg-surface-2 px-1.5 py-0.5 rounded" dir="ltr">{row.nid || row.barcode || 'N/A'}</span>
-                          {row.city && (
-                            <span className={`px-1.5 py-0.5 rounded ${row.carrier === 'INTIGO' ? (govInfo.isGrandTunis ? 'bg-brand/10 text-brand' : (govInfo.unknown ? 'border border-warn text-warn' : 'bg-warn/10 text-warn')) : 'bg-surface-2 text-ink-soft'}`}>
-                              {row.city} {row.carrier === 'INTIGO' && govInfo.isGrandTunis && 'إرجاع 1'}
-                              {row.carrier === 'INTIGO' && !govInfo.isGrandTunis && 'إرجاع 2'}
-                            </span>
-                          )}
-                          {row.phone && (
-                            <span className="text-ink-soft bg-surface-2 px-1.5 py-0.5 rounded" dir="ltr">{row.phone}</span>
-                          )}
-                          {row.status === 'delivered' && row.totalSales === 0 && (
-                            <span className="bg-pos/20 text-pos px-1.5 py-0.5 rounded font-medium">مدفوع مسبقاً</span>
-                          )}
-                        </div>
-                        <div className="flex justify-between items-center mt-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${pill.colors}`} title={row.originalStatusText}>
-                              {pill.label} {row.status === 'in_progress' && '⚠'}
-                            </span>
-                            {row.hasError && (
-                              <button onClick={(e) => handleRetryEnrichment(e, row)} className="text-[11px] text-brand hover:underline flex items-center gap-1 min-h-[44px] px-2">
-                                ⚠ إعادة المحاولة
-                              </button>
-                            )}
-                          </div>
-                          
-                          {row.carrier_fee != null && (
-                            <div className="flex flex-col text-[10px] items-end" dir="ltr">
-                               <span className={`tabular-nums font-mono ${row.fee_delta > 0 ? 'text-neg' : (row.fee_delta < 0 ? 'text-pos' : 'text-ink-soft opacity-60')}`}>
-                                 {row.fee_delta < 0 ? '−' : (row.fee_delta > 0 ? '+' : '')}{formatTND(Math.abs(row.fee_delta))}
-                               </span>
-                            </div>
-                          )}
-                          
-                          <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity focus-within:opacity-100">
-                            {zone === 'master' ? (
-                              <>
-                                <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'cakado'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ كاكادو</button>
-                                <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'balkis'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ بلقيس</button>
-                              </>
-                            ) : (
-                              <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'master'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">↩ إلغاء</button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-  );
-}, (prevProps, nextProps) => {
-  return prevProps.selected === nextProps.selected &&
-         prevProps.selectable === nextProps.selectable &&
-         prevProps.row.id === nextProps.row.id &&
-         prevProps.row.status === nextProps.row.status &&
-         prevProps.row.enrichState === nextProps.row.enrichState &&
-         prevProps.row.productName === nextProps.row.productName &&
-         prevProps.row.totalSales === nextProps.row.totalSales &&
-         prevProps.row.city === nextProps.row.city;
-});
-
-
-const EnrichmentProgress = () => {
-  const [progress, setProgress] = useState(progressStore.get());
-  useEffect(() => progressStore.subscribe(() => setProgress(progressStore.get())), []);
-  
-  if (progress.total === 0 || progress.current === progress.total) return null;
-  const pct = Math.round((progress.current / progress.total) * 100);
-  
-  return (
-    <div className="bg-surface border p-3 rounded-xl shadow-sm mb-4">
-      <div className="flex justify-between items-end mb-2">
-        <span className="font-bold text-sm text-ink">جاري جلب الأسماء (Intigo)...</span>
-        <span className="font-mono text-xs text-brand font-bold bg-brand/10 px-2 py-0.5 rounded-full" dir="ltr">
-          {progress.current} / {progress.total}
-        </span>
-      </div>
-      <div className="h-2 bg-line rounded-full overflow-hidden w-full relative">
-        <div className="absolute top-0 left-0 h-full bg-brand rounded-full transition-all duration-300" style={{ width: `${pct}%` }}></div>
-      </div>
-      {progress.errors > 0 && (
-        <p className="text-[10px] text-warn mt-1.5 flex items-center gap-1">
-          <span>⚠</span> فشل جلب {progress.errors} طلبات.
-        </p>
-      )}
-    </div>
-  );
-};
-
-const AnimatedNumber = React.memo(({ value }) => {
-  const [displayValue, setDisplayValue] = useState(value);
-  const requestRef = useRef();
-  const startTimeRef = useRef();
-  const previousValueRef = useRef(value);
-
-  useEffect(() => {
-    if (value === displayValue) return;
-    
-    const animate = time => {
-      if (!startTimeRef.current) startTimeRef.current = time;
-      const progress = Math.min((time - startTimeRef.current) / 400, 1);
-      
-      const current = previousValueRef.current + (value - previousValueRef.current) * progress;
-      setDisplayValue(current);
-      
-      if (progress < 1) {
-        requestRef.current = requestAnimationFrame(animate);
-      } else {
-        previousValueRef.current = value;
-        setDisplayValue(value);
-      }
-    };
-    
-    startTimeRef.current = undefined;
-    requestRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(requestRef.current);
-  }, [value]);
-
-  return <>{formatTND(displayValue)}</>;
-});
-
-function App() {
-
-  // Splash fade out
-  useEffect(() => {
-    const splash = document.getElementById('boot-splash');
-    if (splash) {
-      requestAnimationFrame(() => {
-        splash.style.transition = 'opacity 0.6s ease';
-        splash.style.opacity = '0';
-        setTimeout(() => splash.remove(), 600);
-      });
-    }
-  }, []);
-      // Three separate state arrays
-      const [masterRows, setMasterRows] = useState([]);
-      const [cakadoRows, setCakadoRows] = useState([]);
-      const [balkisRows, setBalkisRows] = useState([]);
-      
-      const [selectedIds, setSelectedIds] = useState(new Set());
-      const [error, setError] = useState(null);
-      const [autoFeesInfo, setAutoFeesInfo] = useState(null);
-
-      // Presentational Derived View States
-      const [searchQuery, setSearchQuery] = useState('');
-      const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'delivered', 'returned', 'error'
-      const [sortOption, setSortOption] = useState('default'); // 'default', 'price-desc', 'price-asc', 'city', 'status', 'product'
-      const [activeCarrier, setActiveCarrier] = useState(null);
-
-      // Theme toggle
-      const [theme, setTheme] = useState(() => {
-        const stored = localStorage.getItem('recon-theme');
-        if (stored) return stored;
-        return 'light';
-      });
-
-      useEffect(() => {
-        document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('recon-theme', theme);
-      }, [theme]);
-      
-      useEffect(() => {
-        const handleBeforeUnload = (e) => {
-          if (masterRows.length > 0 || cakadoRows.length > 0 || balkisRows.length > 0) {
-            e.preventDefault();
-            e.returnValue = '';
-          }
-        };
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-      }, [masterRows.length, cakadoRows.length, balkisRows.length]);
-
-      const toggleTheme = () => setTheme(t => t === 'light' ? 'console' : 'light');
-
-      // Intigo State
-      const [intigoApiKey, setIntigoApiKey] = useState(localStorage.getItem('intigoApiKey') || '');
-      const [isEnriching, setIsEnriching] = useState(false);
-            const currentUploadId = useRef(0);
-      const [scrollPos, setScrollPos] = useState({ top: true, bottom: false });
-      
-      useEffect(() => {
-         const handleScroll = () => {
-            const isTop = window.scrollY < 100;
-            const isBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100;
-            setScrollPos({ top: isTop, bottom: isBottom });
-         };
-         window.addEventListener('scroll', handleScroll, { passive: true });
-         handleScroll();
-         // observe DOM changes to update bottom detection
-         const observer = new MutationObserver(handleScroll);
-         observer.observe(document.body, { childList: true, subtree: true });
-         return () => {
-            window.removeEventListener('scroll', handleScroll);
-            observer.disconnect();
-         };
-      }, []);
-      
-      const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
-      const scrollToBottom = () => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-      const [showResetModal, setShowResetModal] = useState(false);
-
-      // Per-Brand Fee Structure
-      const [cakadoFees, setCakadoFees] = useState({ delivery: 0, return: 0 });
-      const [balkisFees, setBalkisFees] = useState({ delivery: 0, return: 0 });
-
-            const [dismissedUnknownGovs, setDismissedUnknownGovs] = useState(false);
-      const [duplicateNids, setDuplicateNids] = useState([]);
-      const [unrecognizedStatuses, setUnrecognizedStatuses] = useState([]);
-      const [healthStatus, setHealthStatus] = useState('checking');
-      
-      
-      
-      useEffect(() => {
-         const t = setTimeout(() => { 
-            if ('requestIdleCallback' in window) {
-                window.requestIdleCallback(() => checkHealth(intigoApiKey, setHealthStatus));
-            } else {
-                checkHealth(intigoApiKey, setHealthStatus);
-            }
-         }, 500);
-         return () => clearTimeout(t);
-      }, [intigoApiKey]);
-
-      const resetSession = useCallback(() => {
-        currentUploadId.current += 1;
-        setMasterRows([]);
-        setCakadoRows([]);
-        setBalkisRows([]);
-        setActiveCarrier(null);
-        setAutoFeesInfo(null);
-        setError(null);
-        setSearchQuery('');
-        setFilterStatus('all');
-        setSortOption('default');
-        setSelectedIds(new Set());
-        setIsEnriching(false);
-        progressStore.set({ current: 0, total: 0, errors: 0 });
-        setCakadoFees({ delivery: 0, return: 0 });
-        setBalkisFees({ delivery: 0, return: 0 });
-        setShowResetModal(false);
-                setDuplicateNids([]);
-        setUnrecognizedStatuses([]);
-        setDismissedUnknownGovs(false);
-      }, []);
-
-      const handleNewCompanyClick = () => {
-        const isDirty = masterRows.length > 0 || cakadoRows.length > 0 || balkisRows.length > 0 || activeCarrier || isEnriching;
-        if (isDirty) {
-          setShowResetModal(true);
-        } else {
-          resetSession();
-        }
       };
-
-      const CACHE_KEY_PREFIX = 'intigo_nid_';
-      
-      ;
-
-      const handleClearCache = () => {
-         const keysToRemove = [];
-         for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith(CACHE_KEY_PREFIX)) {
-               keysToRemove.push(key);
-            }
-         }
-         keysToRemove.forEach(k => localStorage.removeItem(k));
-         
-         if (activeCarrier === 'INTIGO') {
-            if (!intigoApiKey || !intigoApiKey.trim()) {
-               setError('أدخل مفتاح Intigo API لجلب أسماء المنتجات من الخادم.');
-               return;
-            }
-            const updateArr = (arr) => arr.map(r => ({ ...r, needsEnrichment: true, enrichState: 'pending', productName: 'جاري الجلب...' }));
-            let allToEnrich = [];
-            setMasterRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
-            setCakadoRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
-            setBalkisRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
-            
-            const thisUploadId = currentUploadId.current; setTimeout(() => enrichIntigoRows(allToEnrich, intigoApiKey, thisUploadId, {
-    setIsEnriching,
-    setHealthStatus,
-    setError,
-    checkIsCancelled: function() { return thisUploadId !== currentUploadId.current; }, 
-    onBatchResolved: (batch) => {
-        const updateArr = (arr) => arr.map(pr => {
-            const updated = batch.find(ur => ur.id === pr.id);
-            return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
-        });
-        setMasterRows(prev => updateArr(prev));
-        setCakadoRows(prev => updateArr(prev));
-        setBalkisRows(prev => updateArr(prev));
-    }
-}), 0);
-         }
-      };
-      ;
-      
-      ;
-
-      ;
 
       // Drag and drop mechanics
       const handleDragStart = (e, id) => {
@@ -1282,21 +874,7 @@ function App() {
         setCakadoRows(prev => updateArr(prev));
         setBalkisRows(prev => updateArr(prev));
 
-        const thisUploadId = currentUploadId.current; enrichIntigoRows([{ ...row, needsEnrichment: true }], intigoApiKey, thisUploadId, {
-    setIsEnriching,
-    setHealthStatus,
-    setError,
-    checkIsCancelled: function() { return thisUploadId !== currentUploadId.current; }, 
-    onBatchResolved: (batch) => {
-        const updateArr = (arr) => arr.map(pr => {
-            const updated = batch.find(ur => ur.id === pr.id);
-            return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
-        });
-        setMasterRows(prev => updateArr(prev));
-        setCakadoRows(prev => updateArr(prev));
-        setBalkisRows(prev => updateArr(prev));
-    }
-});
+        enrichIntigoRows([{ ...row, needsEnrichment: true }], intigoApiKey, currentUploadId.current);
       };
 
       const handleFileUpload = useCallback((file) => {
@@ -1352,23 +930,7 @@ function App() {
               } else {
                 const pendingRows = result.rows.map(r => ({ ...r, enrichState: 'pending', needsEnrichment: true, hasError: false, productName: 'جاري الجلب...' }));
                 setMasterRows(pendingRows);
-                
-enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
-    setIsEnriching,
-    setHealthStatus,
-    setError,
-    checkIsCancelled: () => thisUploadId !== currentUploadId.current,
-    onBatchResolved: (batch) => {
-        const updateArr = (arr) => arr.map(pr => {
-            const updated = batch.find(ur => ur.id === pr.id);
-            return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
-        });
-        setMasterRows(prev => updateArr(prev));
-        setCakadoRows(prev => updateArr(prev));
-        setBalkisRows(prev => updateArr(prev));
-    }
-});
-
+                enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId);
               }
             }
           } catch (err) {
@@ -1394,7 +956,67 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
 
       // Number Formatting
 
-      ;
+      const calculateStats = (rows, fees) => {
+        let totalSales = 0;
+        let totalRuleFeeDelivery = 0;
+        let totalRuleFeeReturn = 0;
+        let totalCarrierFee = 0;
+        let hasCarrierFee = false;
+        
+        let prepaidCount = 0;
+        let counts = { delivered: 0, returned: 0, in_progress: 0, cancelled: 0, exchange: 0 };
+        
+        const newUnknownGovs = [];
+
+        rows.forEach(row => {
+          if (counts[row.status] !== undefined) counts[row.status]++;
+          
+          if (row.carrier_fee != null) {
+            hasCarrierFee = true;
+            totalCarrierFee += row.carrier_fee;
+          }
+          
+          if (row.status === 'delivered') {
+             if (row.totalSales === 0) prepaidCount++;
+             totalSales += row.totalSales;
+             
+             let rf = (row.carrier === 'INTIGO') ? 7 : (fees.delivery || 0);
+             row.rule_fee = rf;
+             totalRuleFeeDelivery += rf;
+          } else if (row.status === 'returned') {
+             let rf = fees.return || 0;
+             if (row.carrier === 'INTIGO') {
+                const govInfo = resolveGov(row.city);
+                rf = govInfo.isGrandTunis ? 1 : 2;
+                if (govInfo.unknown) newUnknownGovs.push(govInfo.raw);
+             }
+             row.rule_fee = rf;
+             totalRuleFeeReturn += rf;
+          } else {
+             row.rule_fee = 0;
+          }
+          
+          if (row.carrier_fee != null) {
+             row.fee_delta = round3(row.carrier_fee - row.rule_fee);
+          }
+        });
+        
+        const netRule = totalSales - totalRuleFeeDelivery - totalRuleFeeReturn;
+        const netCarrier = hasCarrierFee ? (totalSales - totalCarrierFee) : null;
+        
+        return { 
+           totalSales: round3(totalSales), 
+           totalRuleFeeDelivery: round3(totalRuleFeeDelivery), 
+           totalRuleFeeReturn: round3(totalRuleFeeReturn), 
+           netRule: round3(netRule), 
+           netCarrier: hasCarrierFee ? round3(netCarrier) : null,
+           hasCarrierFee,
+           count: rows.length,
+           counts,
+           prepaidCount,
+           newUnknownGovs: [...new Set(newUnknownGovs)]
+        };
+      };
 
       const getDerivedView = (sourceArray) => {
         return useMemo(() => {
@@ -1552,19 +1174,115 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
                   <span className="text-sm text-ink-soft">اسحب الطلبات إلى هنا، أو حدّدها ثم انقر للتعيين</span>
                 </div>
               )}
-{rows.slice(0, visibleCount).map((row) => (
-  <RowCard 
-    key={row.id} 
-    row={row} 
-    selectable={selectable} 
-    selected={selectedIds.has(row.id)} 
-    onToggle={toggleSelect} 
-    onDragStart={handleDragStart} 
-  />
-))}
-{visibleCount < rows.length && (
-  <div ref={sentinelRef} className="h-4 w-full" />
-)}
+              {rows.map((row, i) => {
+                const govInfo = resolveGov(row.city);
+                
+                const statusPills = {
+                  'delivered': { label: 'مُسلّم', colors: 'bg-pos/10 text-pos' },
+                  'returned': { label: 'مسترجع', colors: 'bg-neg/10 text-neg' },
+                  'cancelled': { label: 'ملغي', colors: 'bg-ink-faint/10 text-ink-faint line-through' },
+                  'exchange': { label: 'تبادل', colors: 'bg-warn/10 text-warn' },
+                  'in_progress': { label: 'قيد التنفيذ', colors: 'bg-brand/10 text-brand' },
+                  'return_in_progress': { label: 'إرجاع قيد التنفيذ', colors: 'bg-brand/10 text-brand' },
+                  'other': { label: 'أخرى', colors: 'bg-surface-2 text-ink-soft' }
+                };
+                const pill = statusPills[row.status] || statusPills['other'];
+
+                return (
+                  <div
+                    key={row.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, row.id)}
+                    onClick={selectable ? (e) => toggleSelect(e, row.id) : undefined}
+                    className={`bg-surface border p-3 rounded-xl shadow-sm transition-all duration-200 group relative
+                      ${selectable ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : 'cursor-grab active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-md'} 
+                      ${selectedIds.has(row.id) ? 'border-brand ring-1 ring-brand bg-brand/5' : 'border-line'}
+                    `}
+                    style={i < 12 ? { animation: `fadeInUp 0.3s ease-out ${i * 0.03}s both` } : {}}
+                  >
+                    <div className="flex items-start gap-3">
+                      {selectable && (
+                        <input 
+                           type="checkbox" 
+                           className="w-5 h-5 mt-0.5 rounded cursor-pointer accent-brand"
+                          checked={selectedIds.has(row.id)}
+                          onChange={(e) => toggleSelect(e, row.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
+                      <div className="flex-1 min-w-0 flex flex-col gap-2">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex items-start gap-2 min-w-0">
+                            {row.carrier === 'INTIGO' && (
+                               <span className="flex-shrink-0 mt-0.5" title={row.enrichState === 'fetched' ? 'تم جلب الاسم' : row.enrichState === 'blocked' ? 'بانتظار المفتاح' : row.enrichState === 'not_found' ? 'لم يُعثر على المنتج' : row.enrichState === 'error' ? 'فشل الطلب — أعد المحاولة' : 'جاري الجلب...'}>
+                                  {row.enrichState === 'fetched' ? <span className="text-pos">✓</span> :
+                                   (row.enrichState === 'blocked' || row.enrichState === 'not_found') ? <span className="text-warn">⚠</span> :
+                                   row.enrichState === 'error' ? <span className="text-neg">✗</span> :
+                                   <span className="text-brand animate-pulse">⏳</span>}
+                               </span>
+                            )}
+                            <span className="font-medium text-[14px] text-ink leading-tight flex flex-wrap items-center gap-1">
+                               {row.productName}
+                               {row.carrier === 'INTIGO' && String(row.productName).trim().toLowerCase() === 'colis' && (
+                                  <span className="text-warn text-[10px] ml-1 flex items-center" title="الوصف افتراضي من Intigo — لم يُحدَّد اسم منتج">⚠</span>
+                               )}
+                            </span>
+                          </div>
+                          <span className="font-mono font-bold text-ink tabular-nums whitespace-nowrap text-[14px]" dir="ltr">
+                            {row.status === 'delivered' ? formatTND(row.totalSales) : <span className="text-ink-faint">—</span>}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                          <span className="font-mono text-ink-faint uppercase tracking-wider bg-surface-2 px-1.5 py-0.5 rounded" dir="ltr">{row.nid || row.barcode || 'N/A'}</span>
+                          {row.city && (
+                            <span className={`px-1.5 py-0.5 rounded ${row.carrier === 'INTIGO' ? (govInfo.isGrandTunis ? 'bg-brand/10 text-brand' : (govInfo.unknown ? 'border border-warn text-warn' : 'bg-warn/10 text-warn')) : 'bg-surface-2 text-ink-soft'}`}>
+                              {row.city} {row.carrier === 'INTIGO' && govInfo.isGrandTunis && 'إرجاع 1'}
+                              {row.carrier === 'INTIGO' && !govInfo.isGrandTunis && 'إرجاع 2'}
+                            </span>
+                          )}
+                          {row.phone && (
+                            <span className="text-ink-soft bg-surface-2 px-1.5 py-0.5 rounded" dir="ltr">{row.phone}</span>
+                          )}
+                          {row.status === 'delivered' && row.totalSales === 0 && (
+                            <span className="bg-pos/20 text-pos px-1.5 py-0.5 rounded font-medium">مدفوع مسبقاً</span>
+                          )}
+                        </div>
+                        <div className="flex justify-between items-center mt-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${pill.colors}`} title={row.originalStatusText}>
+                              {pill.label} {row.status === 'in_progress' && '⚠'}
+                            </span>
+                            {row.hasError && (
+                              <button onClick={(e) => handleRetryEnrichment(e, row)} className="text-[11px] text-brand hover:underline flex items-center gap-1 min-h-[44px] px-2">
+                                ⚠ إعادة المحاولة
+                              </button>
+                            )}
+                          </div>
+                          
+                          {row.carrier_fee != null && (
+                            <div className="flex flex-col text-[10px] items-end" dir="ltr">
+                               <span className={`tabular-nums font-mono ${row.fee_delta > 0 ? 'text-neg' : (row.fee_delta < 0 ? 'text-pos' : 'text-ink-soft opacity-60')}`}>
+                                 {row.fee_delta < 0 ? '−' : (row.fee_delta > 0 ? '+' : '')}{formatTND(Math.abs(row.fee_delta))}
+                               </span>
+                            </div>
+                          )}
+                          
+                          <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity focus-within:opacity-100">
+                            {zone === 'master' ? (
+                              <>
+                                <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'cakado'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ كاكادو</button>
+                                <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'balkis'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ بلقيس</button>
+                              </>
+                            ) : (
+                              <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'master'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">↩ إلغاء</button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
@@ -1600,7 +1318,13 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
           )}
         </div>
       );
-const BrandSummaryCard = ({ title, stats }) => (
+
+      const AnimatedNumber = ({ value }) => {
+        const displayValue = useCountUp(value, 400);
+        return <>{formatTND(displayValue)}</>;
+      };
+
+      const BrandSummaryCard = ({ title, stats }) => (
         <div className="bg-surface rounded-xl shadow-sm border border-line p-5 flex-1 flex flex-col justify-between surface-highlight transition-all">
           <h3 className="text-lg font-display text-ink mb-4">{title}</h3>
           <div className="flex flex-col gap-3">

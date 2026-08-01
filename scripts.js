@@ -1,26 +1,16 @@
-<!DOCTYPE html>
-<html lang="ar">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>لوحة إدارة الطلبات</title>
-  <script>
+>
     (function() {
       var stored = localStorage.getItem('recon-theme');
       var theme = stored ? stored : 'light';
       document.documentElement.setAttribute('data-theme', theme);
     })();
-  </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@700&family=Sora:wght@400;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
   
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  <script>
+ src="https://unpkg.com/react@18/umd/react.production.min.js">
+ src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js">
+ src="https://unpkg.com/@babel/standalone/babel.min.js">
+ src="https://cdn.tailwindcss.com">
+ src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js">
+>
     tailwind.config = {
       theme: {
         extend: {
@@ -45,140 +35,8 @@
         }
       }
     }
-  </script>
-  <style>
-    :root {
-      --bg: #ECEFF3;
-      --vignette: radial-gradient(circle at top, rgba(0,0,0,0.03), transparent 60%);
-      --surface: #FFFFFF;
-      --surface-2: #F6F8FA;
-      --ink: #0B1220;
-      --ink-soft: #475063;
-      --ink-faint: #8A93A3;
-      --line: #E2E7EE;
-      --brand: #0F766E;
-      --pos: #059669;
-      --neg: #E11D48;
-      --warn: #D97706;
-      --bg-grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    }
-    
-    [data-theme="console"] {
-      --bg: #0B1118;
-      --vignette: radial-gradient(circle at top, rgba(255,255,255,0.03), transparent 60%);
-      --surface: #121A24;
-      --surface-2: #0E1620;
-      --ink: #E6EDF3;
-      --ink-soft: #9AA7B6;
-      --ink-faint: #6E7A8A;
-      --line: #1E2A37;
-      --brand: #2DD4BF;
-      --pos: #34D399;
-      --neg: #FB7185;
-      --warn: #FBBF24;
-    }
-    
-    body {
-      background-color: var(--bg);
-      color: var(--ink);
-      font-family: 'Tajawal', 'Sora', sans-serif;
-      position: relative;
-      transition: background-color 0.25s ease, color 0.25s ease;
-    }
-    
-    body::before {
-      content: "";
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-image: var(--bg-grain);
-      opacity: 0.04;
-      pointer-events: none;
-      z-index: -1;
-    }
-    body::after {
-      content: "";
-      position: fixed;
-      top: 0; left: 0; right: 0; height: 100vh;
-      background: var(--vignette);
-      pointer-events: none;
-      z-index: -1;
-    }
-    
-    .hide-scrollbar::-webkit-scrollbar { display: none; }
-    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    
-    /* Custom Scrollbars */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: var(--line);
-      border-radius: 4px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: var(--ink-faint);
-    }
-    
-    .tabular-nums { font-variant-numeric: tabular-nums; }
-    
-    @media (prefers-reduced-motion: reduce) {
-      *, ::before, ::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-        scroll-behavior: auto !important;
-      }
-    }
-    
-    /* Sheen animation */
-    @keyframes sweep {
-      0% { transform: translateX(-100%); }
-      100% { transform: translateX(200%); }
-    }
-    .sheen::after {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
-      animation: sweep 6s infinite linear;
-      pointer-events: none;
-    }
-    
-    [data-theme="console"] .surface-highlight {
-      border-top: 1px solid rgba(255,255,255,0.08);
-      box-shadow: none;
-    }
-    .surface-highlight {
-      border-top: 1px solid rgba(255,255,255,0.8);
-      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-    }
-  </style>
-</head>
-<body class="min-h-screen">
   
-<div id="boot-splash" style="position:fixed;inset:0;z-index:9999;background-color:#ECEFF3;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Reem Kufi', sans-serif;">
-  <div style="font-size:24px;font-weight:700;color:#0B1220;margin-bottom:24px;">لوحة إدارة الطلبات</div>
-  <div style="width:200px;height:4px;background-color:rgba(15, 118, 110, 0.2);border-radius:2px;overflow:hidden;position:relative;">
-    <div id="splash-progress" style="position:absolute;left:0;top:0;height:100%;width:40%;background-color:#0F766E;border-radius:2px;transition:left 0.5s ease-in-out;"></div>
-  </div>
-  <style>
-    @keyframes sweep {
-      0% { left: -40%; }
-      100% { left: 100%; }
-    }
-    #splash-progress {
-      animation: sweep 1.5s infinite ease-in-out;
-    }
-  </style>
-  <div style="margin-top:12px;font-size:12px;color:#0B1220;opacity:0.7;font-family:'Tajawal', sans-serif;">جارٍ التحميل…</div>
-</div>
-
-    <div id="root" dir="rtl"></div>
-  <script>
+>
     
 
     const round3 = (x) => {
@@ -562,6 +420,26 @@
         
       return { rows: parsed, autoFees: null, isIntigo: true, duplicateNids: [...new Set(duplicateNids)] };
     }
+
+    function useCountUp(val, duration = 400) {
+      const [current, setCurrent] = useState(val);
+      useEffect(() => {
+        if (current === val) return;
+        const start = performance.now();
+        const startVal = current;
+        const endVal = val;
+        
+        const tick = (now) => {
+          const progress = Math.min((now - start) / duration, 1);
+          const easeOut = 1 - Math.pow(1 - progress, 3);
+          setCurrent(startVal + (endVal - startVal) * easeOut);
+          if (progress < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }, [val, duration]);
+      return current;
+    }
+
 const APP_VERSION = 'v1.0';
 const CACHE_KEY_PREFIX = 'intigo_nid_';
 const isValidName = (name) => {
@@ -712,8 +590,16 @@ const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
                        batch.push(rem);
                     }
 
-                    onBatchResolved(batch);
-                    progressStore.set({ current, total: rowsToEnrich.length, errors });
+                    const updateArr = (arr) => arr.map(pr => {
+                       const updated = batch.find(ur => ur.id === pr.id);
+                       return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
+                    });
+                    
+                    setMasterRows(prev => updateArr(prev));
+                    setCakadoRows(prev => updateArr(prev));
+                    setBalkisRows(prev => updateArr(prev));
+                    
+                    progressStore.set({ current: 0, total: 0, errors: 0 });
                     setIsEnriching(false);
                     return;
                   }
@@ -816,10 +702,17 @@ const productName = typeof _rawName === 'string' ? _rawName.replace(/^\[GENERATE
           if (updatedRowsPart.length >= 10 || current === rowsToEnrich.length) {
             const batch = [...updatedRowsPart];
             
-            onBatchResolved(batch);
+            const updateArr = (arr) => arr.map(pr => {
+               const updated = batch.find(ur => ur.id === pr.id);
+               return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
+            });
+            
+            setMasterRows(prev => updateArr(prev));
+            setCakadoRows(prev => updateArr(prev));
+            setBalkisRows(prev => updateArr(prev));
             
             updatedRowsPart = [];
-            progressStore.set({ current, total: rowsToEnrich.length, errors });
+            progressStore.set({ current: 0, total: 0, errors: 0 });
           }
         }
         
@@ -868,8 +761,8 @@ async function checkHealth(key, setHealthStatus) {
         }
       
 }
-</script>
-<script type="text/babel">
+
+ type="text/babel">
 const { useState, useCallback, useMemo, useRef, useEffect, startTransition } = React;
 
 const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart }) => {
@@ -1954,6 +1847,4 @@ const BrandSummaryCard = ({ title, stats }) => (
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
-  </script>
-</body>
-</html>
+  
