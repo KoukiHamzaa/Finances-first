@@ -163,136 +163,23 @@
   <script type="text/babel">
     const { useState, useCallback, useMemo, useRef, useEffect } = React;
 
-    const round3 = (x) => {
-      const n = Math.round((Number(x) || 0) * 1000) / 1000;
-      return isNaN(n) ? 0 : n;
-    };
-
-    const formatTND = (x) => round3(x).toFixed(3).replace(".", ",");
-
-    const parseMoney = (raw) => {
-      if (raw == null) return { value: 0, bad: false };
-      let s = String(raw).trim();
-      s = s.replace(/DT|TND|د\.?ت\.?|دينار|\$|€|\s|\u00A0/g, "");
-      if (s === "") return { value: 0, bad: false };
-      
-      if (s.includes(",") && s.includes(".")) {
-        const firstComma = s.indexOf(",");
-        const firstDot = s.indexOf(".");
-        if (firstComma < firstDot) {
-          s = s.replace(/,/g, "");
-        } else {
-          s = s.replace(/\./g, "").replace(/,/g, ".");
-        }
-      } else if (s.includes(",")) {
-        const lastComma = s.lastIndexOf(",");
-        const afterComma = s.substring(lastComma + 1);
-        if (afterComma.length >= 1 && afterComma.length <= 3) {
-          s = s.substring(0, lastComma).replace(/,/g, "") + "." + afterComma;
-        } else {
-          s = s.replace(/,/g, "");
-        }
-      }
-      
-      const n = Number(s.replace(/[^0-9.\-]/g, ""));
-      if (!isFinite(n) || isNaN(n)) return { value: 0, bad: true };
-      return { value: round3(n), bad: false };
-    };
-
-    const normalizeCity = (raw) => {
-      if (!raw) return "";
-      return String(raw)
-        .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/[.,/#!$%\^&\*;:{}=\-_~()]/g, "")
-        .replace(/\s+/g, " ")
-        .trim();
-    };
-
-    const GOV_ALIASES = {
-      "GRAND_TUNIS.TUNIS": ["tunis", "tunez", "tunes", "تونس", "تونس المدينة", "la marsa", "المرسى", "marsa", "carthage", "قرطاج", "le bardo", "باردو", "bardo", "sidi hassine", "el omrane", "ettadhamen", "hrairia", "jebel jelloud", "el kabaria", "sidi el bechir", "bab bhar", "bab souika", "la goulette", "حلق الوادي", "goulette", "kram", "الكرم", "sidi bou said", "سيدي بوسعيد"],
-      "GRAND_TUNIS.ARIANA": ["ariana", "أريانة", "aryanah", "arianah", "la soukra", "السوكرة", "soukra", "raoued", "رواد", "روّاد", "kalaat el andalous", "sidi thabet", "mnihla", "المنيهلة", "اريانة المدينة", "ariana ville", "ariana medina"],
-      "GRAND_TUNIS.BEN_AROUS": ["ben arous", "بن عروس", "بنعرس", "el mourouj", "المروج", "mourouj", "hammam-lif", "hammam lif", "حمام الانف", "hammam chott", "ezzahra", "rades", "رادس", "megrine", "megarine", "mornag", "fouchana", "mohamedia", "bou mhel el bassatine"],
-      "GRAND_TUNIS.MANNOUBA": ["mannouba", "manouba", "la manouba", "منوبة", "المنوبة", "oued ellil", "وادي الليل", "mornaguia", "borj el amri", "douar hicher", "el batan", "tebourba", "طبربة", "jedaida", "الجديدة"]
-    };
-
-    const REVERSE_GOV = new Map();
-    for (const [id, aliases] of Object.entries(GOV_ALIASES)) {
-      for (const alias of aliases) {
-        REVERSE_GOV.set(normalizeCity(alias), id);
-      }
-    }
-
-    const resolveGov = (raw) => {
-      const norm = normalizeCity(raw);
-      if (!norm) return { canonical: "OTHER", isGrandTunis: false, unknown: false, raw: raw };
-      const id = REVERSE_GOV.get(norm);
-      return { 
-        canonical: id ?? "OTHER", 
-        isGrandTunis: !!id && id.startsWith("GRAND_TUNIS"), 
-        unknown: id == null,
-        raw: raw
-      };
-    };
-
-    const statusBucket = (codeOrLabel) => {
-      const s = String(codeOrLabel).trim().toLowerCase();
-      if (["5000", "livre", "livré", "delivered", "تم التسليم", "مسلم", "مسلّم"].includes(s)) return "delivered";
-      if (["6900", "retourne", "retourné", "returned", "retour reçu", "مسترجع", "مرتجع", "تم الارجاع"].includes(s)) return "returned";
-      if (["1100", "1101", "1102", "9000", "9001", "9002", "9003", "9004", "annule", "annulé", "cancelled", "ملغى", "ملغي"].includes(s)) return "cancelled";
-      if (["6500", "exchange", "تبادل"].includes(s)) return "exchange";
-      if (["6000", "6001", "3201", "return_in_progress"].includes(s)) return "return_in_progress";
-      return "in_progress";
-    };
-
-
     // Detect template type
-    function findHeaderAndScore(rows) {
-      if (!rows || rows.length === 0) return { template: 'UNKNOWN', headerIdx: 0 };
-      
-      let bestScore = 0;
-      let bestTemplate = 'UNKNOWN';
-      let bestIdx = 0;
-
-      const scanLimit = Math.min(8, rows.length);
-      for (let i = 0; i < scanLimit; i++) {
-        const r = rows[i];
-        if (!r) continue;
-        const h = r.map(c => String(c ?? '').trim().toLowerCase());
-        
-        let convertyScore = 0;
-        if (h.includes('designation')) convertyScore++;
-        if (h.includes('prix')) convertyScore++;
-        if (h.includes('etat')) convertyScore++;
-        
-        let intigoScore = 0;
-        if (h.includes('nid')) intigoScore++;
-        if (h.includes('ville')) intigoScore++;
-        if (h.includes('statut')) intigoScore++;
-        if (h.some(x => x.includes('prix cod'))) intigoScore++;
-        if (h.includes('frais')) intigoScore++;
-        
-        const firstCell = String(r[0] ?? '').trim().toLowerCase();
-        let logistaScore = 0;
-        if (firstCell.startsWith('détails paiement') || firstCell.startsWith('details paiement')) logistaScore = 5;
-
-        if (logistaScore >= 5 && logistaScore > bestScore) { bestScore = logistaScore; bestTemplate = 'LOGISTA'; bestIdx = i; }
-        else if (intigoScore >= 4 && intigoScore > bestScore) { bestScore = intigoScore; bestTemplate = 'INTIGO'; bestIdx = i; }
-        else if (convertyScore >= 3 && convertyScore > bestScore) { bestScore = convertyScore; bestTemplate = 'CONVERTY'; bestIdx = i; }
-      }
-      
-      return { template: bestTemplate, headerIdx: bestIdx };
-    }
-
     function detectTemplate(rows) {
-      return findHeaderAndScore(rows).template;
+      if (!rows || rows.length < 2) return 'UNKNOWN';
+      const h = rows[0].map(c => String(c ?? '').trim().toLowerCase());
+      if (h.includes('designation') && h.includes('prix') && h.includes('etat')) return 'CONVERTY';
+      
+      const firstCell = String(rows[0][0] ?? '').trim().toLowerCase();
+      if (firstCell.startsWith('détails paiement') || firstCell.startsWith('details paiement')) return 'LOGISTA';
+      
+      if (h.includes('nid') && h.includes('ville') && h.includes('statut') && h.some(x => x.includes('prix cod')) && h.includes('frais')) return 'INTIGO';
+
+      return 'UNKNOWN';
     }
 
+    // Parse Converty
     function parseConverty(rows) {
-      const { headerIdx } = findHeaderAndScore(rows);
-      const header = rows[headerIdx];
-      const data = rows.slice(headerIdx + 1);
-      
+      const [header, ...data] = rows;
       const h = header.map(c => String(c ?? '').trim().toLowerCase());
       const get = (row, col) => row[h.indexOf(col)];
       const getFlexible = (row, cols) => {
@@ -302,99 +189,65 @@
         }
         return undefined;
       };
-      
-      const duplicateNids = [];
-      const seenNids = new Set();
 
       const parsed = data
         .filter(row => {
           const state = String(get(row, 'etat') ?? '').trim().toLowerCase();
-          const bucket = statusBucket(state);
-          return bucket === 'delivered' || bucket === 'returned' || bucket === 'cancelled' || bucket === 'exchange' || bucket === 'return_in_progress' || state.includes('livré') || state.includes('livre') || state.includes('retour') || state.includes('annul');
+          return state.includes('livré') || state.includes('livre') || state.includes('retour') || state.includes('annul');
         })
         .map(row => {
           const state = String(get(row, 'etat') ?? '').trim().toLowerCase();
-          const bucket = statusBucket(state);
-          // For legacy compatibility where bucket doesn't map directly, fallback
-          const isDelivered = bucket === 'delivered' || state.includes('livré') || state.includes('livre');
-          const isReturned = bucket === 'returned' || (state.includes('retour') && !state.includes('en cours'));
-          
-          let parsedBucket = bucket;
-          if (bucket === 'in_progress' || bucket === 'other') {
-             if (isDelivered) parsedBucket = 'delivered';
-             else if (isReturned) parsedBucket = 'returned';
-             else if (state.includes('annul')) parsedBucket = 'cancelled';
-          }
-          
+          const isDelivered = state.includes('livré') || state.includes('livre');
           let phone = String(getFlexible(row, ['téléphone', 'telephone', 'tel', 'phone']) ?? '').trim();
-          let priceObj = parseMoney(get(row, 'prix'));
           
           return {
             id: crypto.randomUUID(),
             barcode: String(getFlexible(row, ['code', 'tracking', 'nid']) ?? '').trim(),
             productName: String(get(row, 'designation') ?? '—').trim() || '—',
             phone: phone,
-            totalSales: parsedBucket === 'delivered' ? priceObj.value : 0,
-            status: parsedBucket,
-            carrier_fee: null,
-            rule_fee: 0,
-            fee_delta: null,
-            moneyParseError: priceObj.bad,
-            city: ''
+            totalSales: isDelivered ? (parseFloat(String(get(row, 'prix') ?? '0').replace(/,/g, '')) || 0) : 0,
+            status: isDelivered ? 'delivered' : 'returned'
           };
-        })
-        .filter(row => {
-           if (!row.barcode) return true;
-           const norm = normalizeCity(row.barcode); // Just simple normalize
-           if (seenNids.has(norm)) {
-             duplicateNids.push(row.barcode);
-             return false;
-           }
-           seenNids.add(norm);
-           return true;
         });
-        
-      return { rows: parsed, autoFees: null, duplicateNids: [...new Set(duplicateNids)] };
+      return { rows: parsed, autoFees: null };
     }
 
+    // Parse Logista
     function parseLogista(rows) {
-      const { headerIdx: globalHeaderIdx } = findHeaderAndScore(rows);
-      
-      const findRow = (startIdx, kw1, kw2) => {
-        const idx = rows.slice(startIdx).findIndex(r =>
-          r && r.some(c => String(c ?? '').toLowerCase().includes(kw1.toLowerCase())) &&
-          (!kw2 || r.some(c => String(c ?? '').toLowerCase().includes(kw2.toLowerCase())))
-        );
-        return idx > -1 ? startIdx + idx : -1;
-      };
-      
-      const findRowSingle = (startIdx, kw) => {
-        const idx = rows.slice(startIdx).findIndex(r =>
-          r && String(r[0] ?? '').trim().toLowerCase().startsWith(kw.toLowerCase())
-        );
-        return idx > -1 ? startIdx + idx : -1;
-      };
+      // Dynamic section detection (case-insensitive)
+      const findRow = (kw1, kw2) => rows.findIndex(r =>
+        r.some(c => String(c ?? '').toLowerCase().includes(kw1.toLowerCase())) &&
+        (!kw2 || r.some(c => String(c ?? '').toLowerCase().includes(kw2.toLowerCase())))
+      );
+      const findRowSingle = (kw) => rows.findIndex(r =>
+        String(r[0] ?? '').trim().toLowerCase().startsWith(kw.toLowerCase())
+      );
 
-      const deliveredHeaderIdx = findRow(globalHeaderIdx, 'Code Barres', 'TTC');
+      const deliveredHeaderIdx = findRow('Code Barres', 'TTC');
       if (deliveredHeaderIdx === -1) throw new Error('لم يتم العثور على جدول التسليم في ملف Logista');
-      const deliveredEndIdx = findRowSingle(deliveredHeaderIdx, 'total liv');
+
+      const deliveredEndIdx = findRowSingle('total liv');
       
       const isDataRow = (r) => {
-        if (!r) return false;
         const first = String(r[0] ?? '').trim();
+        // A valid row has something in the first cell, contains digits, and is not a "Total" row or header
         return first !== '' && !first.toLowerCase().startsWith('total') && first.toLowerCase() !== 'code barres' && /\d/.test(first);
       };
-      
+
       const deliveredData = rows
         .slice(deliveredHeaderIdx + 1, deliveredEndIdx > -1 ? deliveredEndIdx : undefined)
         .filter(isDataRow);
 
-      let returnHeaderIdx = findRow(deliveredEndIdx > -1 ? deliveredEndIdx : deliveredHeaderIdx, 'Code Barres', 'frais ret');
+      // Robust return header detection
+      let returnHeaderIdx = findRow('Code Barres', 'frais ret');
       if (returnHeaderIdx === -1 && deliveredEndIdx > -1) {
-        const relIdx = rows.slice(deliveredEndIdx).findIndex(r => r && r.some(c => String(c ?? '').toLowerCase().includes('code barres')));
+        // Fallback: Find 'Code Barres' after the delivered section
+        const remaining = rows.slice(deliveredEndIdx);
+        const relIdx = remaining.findIndex(r => r.some(c => String(c ?? '').toLowerCase().includes('code barres')));
         if (relIdx > -1) returnHeaderIdx = deliveredEndIdx + relIdx;
       }
-      const returnEndIdx = returnHeaderIdx > -1 ? findRowSingle(returnHeaderIdx, 'total ret') : -1;
+
+      const returnEndIdx = findRowSingle('total ret');
       const returnData = returnHeaderIdx > -1
         ? rows.slice(returnHeaderIdx + 1, returnEndIdx > -1 ? returnEndIdx : undefined).filter(isDataRow)
         : [];
@@ -408,79 +261,71 @@
       };
       const delPhoneIdx = getPhoneIndex(rows[deliveredHeaderIdx]);
       const retPhoneIdx = returnHeaderIdx > -1 ? getPhoneIndex(rows[returnHeaderIdx]) : -1;
-      
-      const duplicateNids = [];
-      const seenNids = new Set();
-      
-      const processRow = (row, isDelivered) => {
-          const barcode = String(row[0] ?? '').trim();
-          if (barcode) {
-             const norm = normalizeCity(barcode);
-             if (seenNids.has(norm)) { duplicateNids.push(barcode); return null; }
-             seenNids.add(norm);
-          }
-          
-          let ttcStr = String(row[8] ?? '');
-          let ttcObj = parseMoney(ttcStr);
-          if (ttcObj.bad || ttcObj.value === 0) {
-             ttcObj = parseMoney(String(row[9] ?? ''));
-          }
-          let phone = (isDelivered && delPhoneIdx > -1) ? String(row[delPhoneIdx] ?? '').trim() :
-                      (!isDelivered && retPhoneIdx > -1) ? String(row[retPhoneIdx] ?? '').trim() : '';
-          
-          return {
-            id: crypto.randomUUID(),
-            barcode: barcode,
-            productName: String(row[2] ?? '—').trim() || '—',
-            phone: phone,
-            totalSales: isDelivered ? ttcObj.value : 0,
-            status: isDelivered ? 'delivered' : 'returned',
-            carrier_fee: null,
-            rule_fee: 0,
-            fee_delta: null,
-            moneyParseError: isDelivered ? ttcObj.bad : false,
-            city: ''
-          };
-      };
 
-      const parsedDelivered = deliveredData.map(r => processRow(r, true)).filter(Boolean);
-      const parsedReturned = returnData.map(r => processRow(r, false)).filter(Boolean);
+      const parsedDelivered = deliveredData.map(row => {
+        // TTC Fallback: Read index 8, fallback to 9
+        let ttc = parseFloat(row[8]);
+        if (isNaN(ttc) || ttc == null) ttc = parseFloat(row[9]) || 0;
+        let phone = delPhoneIdx > -1 ? String(row[delPhoneIdx] ?? '').trim() : '';
+        return {
+          id: crypto.randomUUID(),
+          barcode: String(row[0] ?? '').trim(),
+          productName: String(row[2] ?? '—').trim() || '—',
+          phone: phone,
+          totalSales: ttc,
+          status: 'delivered'
+        };
+      });
 
+      const parsedReturned = returnData.map(row => {
+        let phone = retPhoneIdx > -1 ? String(row[retPhoneIdx] ?? '').trim() : '';
+        return {
+          id: crypto.randomUUID(),
+          barcode: String(row[0] ?? '').trim(),
+          productName: String(row[2] ?? '—').trim() || '—',
+          phone: phone,
+          totalSales: 0,
+          status: 'returned'
+        };
+      });
+
+      // Auto-Fee Computation
       let deliveryFee = 0;
       if (deliveredData.length > 0) {
-        deliveryFee = parseMoney(deliveredData[0][10]).value;
-      }
-      let returnFee = 0;
-      if (returnData.length > 0) {
-        returnFee = parseMoney(returnData[0][10]).value;
+        // Column 10 of delivered sub-table
+        deliveryFee = parseFloat(deliveredData[0][10]) || 0;
       }
 
-      return {
-        rows: [...parsedDelivered, ...parsedReturned],
-        autoFees: (deliveryFee || returnFee) ? { delivery: deliveryFee, return: returnFee } : null,
-        duplicateNids: [...new Set(duplicateNids)]
+      let returnFee = 0;
+      if (returnData.length > 0) {
+        // Column 8 of returns sub-table
+        returnFee = parseFloat(returnData[0][8]) || 0;
+      }
+
+      return { 
+        rows: [...parsedDelivered, ...parsedReturned], 
+        autoFees: { delivery: deliveryFee, return: returnFee } 
       };
     }
 
+    // Parse Intigo
     function parseIntigo(rows) {
-      const { headerIdx } = findHeaderAndScore(rows);
-      const header = rows[headerIdx];
-      const data = rows.slice(headerIdx + 1);
-      
+      const [header, ...data] = rows;
       const h = header.map(c => String(c ?? '').trim().toLowerCase());
       
       const get = (row, colSubstring) => {
         const idx = h.findIndex(x => x === colSubstring || x.includes(colSubstring));
         return idx > -1 ? row[idx] : undefined;
       };
-      
-      const duplicateNids = [];
-      const seenNids = new Set();
-      
+
       const parsed = data
+        .filter(row => {
+          const state = String(get(row, 'statut') ?? '').trim().toLowerCase();
+          return state === 'livre' || state === 'retourne' || state === 'livré' || state === 'retourné';
+        })
         .map(row => {
-          const state = String(get(row, 'statut') ?? '').trim();
-          const bucket = statusBucket(state);
+          const state = String(get(row, 'statut') ?? '').trim().toLowerCase();
+          const isDelivered = state === 'livre' || state === 'livré';
           
           let phone = '';
           const phoneIdx = h.findIndex(x => x.includes('téléphone') || x.includes('telephone') || x === 'tel' || x.includes('phone'));
@@ -488,36 +333,20 @@
             phone = String(row[phoneIdx] ?? '').trim();
           }
           
-          const nid = String(get(row, 'nid') ?? '').trim();
-          if (nid) {
-             const norm = normalizeCity(nid);
-             if (seenNids.has(norm)) { duplicateNids.push(nid); return null; }
-             seenNids.add(norm);
-          }
-          
-          let priceObj = parseMoney(get(row, 'prix cod'));
-          let carrierFeeObj = parseMoney(get(row, 'frais'));
-          let carrier_fee = get(row, 'frais') !== undefined ? carrierFeeObj.value : null;
-
           return {
             id: crypto.randomUUID(),
-            nid: nid,
+            nid: String(get(row, 'nid') ?? '').trim(),
             city: String(get(row, 'ville') ?? '').trim(),
-            productName: 'جاري التحميل...',
+            productName: 'جاري التحميل...', // Placeholder until enriched
             phone: phone,
-            totalSales: bucket === 'delivered' ? priceObj.value : 0,
-            status: bucket,
+            totalSales: isDelivered ? (parseFloat(String(get(row, 'prix cod') ?? '0').replace(/,/g, '')) || 0) : 0,
+            status: isDelivered ? 'delivered' : 'returned',
             carrier: 'INTIGO',
-            needsEnrichment: true,
-            carrier_fee: carrier_fee,
-            rule_fee: 0,
-            fee_delta: null,
-            moneyParseError: priceObj.bad || carrierFeeObj.bad,
-            originalStatusText: state
+            needsEnrichment: true
           };
-        }).filter(Boolean);
+        });
         
-      return { rows: parsed, autoFees: null, isIntigo: true, duplicateNids: [...new Set(duplicateNids)] };
+      return { rows: parsed, autoFees: null, isIntigo: true };
     }
 
     function useCountUp(val, duration = 400) {
@@ -566,17 +395,6 @@
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem('recon-theme', theme);
       }, [theme]);
-      
-      useEffect(() => {
-        const handleBeforeUnload = (e) => {
-          if (masterRows.length > 0 || cakadoRows.length > 0 || balkisRows.length > 0) {
-            e.preventDefault();
-            e.returnValue = '';
-          }
-        };
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-      }, [masterRows.length, cakadoRows.length, balkisRows.length]);
 
       const toggleTheme = () => setTheme(t => t === 'light' ? 'console' : 'light');
 
@@ -590,37 +408,6 @@
       // Per-Brand Fee Structure
       const [cakadoFees, setCakadoFees] = useState({ delivery: 0, return: 0 });
       const [balkisFees, setBalkisFees] = useState({ delivery: 0, return: 0 });
-
-      const [unknownGovs, setUnknownGovs] = useState([]);
-      const [dismissedUnknownGovs, setDismissedUnknownGovs] = useState(false);
-      const [duplicateNids, setDuplicateNids] = useState([]);
-      const [healthStatus, setHealthStatus] = useState('checking');
-      
-      const checkHealth = useCallback(async (key) => {
-        if (!key) { setHealthStatus('unauthorized'); return; }
-        setHealthStatus('checking');
-        try {
-           let res = await fetch('https://api.intigo.net/api/v3/health', { headers: { 'X-API-Key': key } });
-           if (res.status === 401) {
-              setHealthStatus('unauthorized');
-              return;
-           }
-           if (!res.ok) {
-              res = await fetch('https://api.intigo.net/api/v3/health');
-              if (res.ok) { setHealthStatus('connected'); return; }
-              setHealthStatus('error');
-              return;
-           }
-           setHealthStatus('connected');
-        } catch (e) {
-           setHealthStatus('error');
-        }
-      }, []);
-      
-      useEffect(() => {
-         const t = setTimeout(() => { checkHealth(intigoApiKey); }, 500);
-         return () => clearTimeout(t);
-      }, [intigoApiKey, checkHealth]);
 
       const resetSession = useCallback(() => {
         currentUploadId.current += 1;
@@ -639,9 +426,6 @@
         setCakadoFees({ delivery: 0, return: 0 });
         setBalkisFees({ delivery: 0, return: 0 });
         setShowResetModal(false);
-        setUnknownGovs([]);
-        setDuplicateNids([]);
-        setDismissedUnknownGovs(false);
       }, []);
 
       const handleNewCompanyClick = () => {
@@ -653,24 +437,6 @@
         }
       };
 
-      const CACHE_KEY_PREFIX = 'intigo_nid_';
-      const getCachedName = (nid) => {
-        try {
-           const val = localStorage.getItem(CACHE_KEY_PREFIX + nid);
-           if (val) {
-              const obj = JSON.parse(val);
-              if (obj && Date.now() - obj.fetchedAt < 7 * 24 * 60 * 60 * 1000) return obj;
-           }
-        } catch (e) {}
-        return null;
-      };
-      
-      const setCachedName = (nid, data) => {
-         try {
-            localStorage.setItem(CACHE_KEY_PREFIX + nid, JSON.stringify({ ...data, fetchedAt: Date.now() }));
-         } catch(e) {}
-      };
-
       const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId) => {
         setIsEnriching(true);
         setEnrichProgress({ current: 0, total: rowsToEnrich.length, errors: 0 });
@@ -679,106 +445,72 @@
         let errors = 0;
         let updatedRowsPart = [];
         let isFirstSuccess = true;
-        let throttleDelay = 30;
-        
-        const listJoinMap = new Map();
-        try {
-           const res = await fetch(`https://api.intigo.net/api/v3/parcels/`, { headers: { 'X-API-Key': apiKey }});
-           if (res.ok) {
-              const jsonData = await res.json();
-              let arr = jsonData.data || jsonData.parcels || jsonData.result || [];
-              if (!Array.isArray(arr)) arr = [arr];
-              for (const p of arr) {
-                 if (!p) continue;
-                 const n = String(p.nid || p.id || p.tracking || '').trim();
-                 if (!n) continue;
-                 const productName = p.description || p.product_name || p.name || p.content || p.item_name || 'منتج بدون اسم';
-                 const fetchedPhone = p.client_phone || p.customer_phone || p.phone || p.receiver_phone || p.telephone || '';
-                 listJoinMap.set(n, { description: productName, phone: fetchedPhone });
-              }
-           }
-        } catch (e) {}
         
         for (let i = 0; i < rowsToEnrich.length; i++) {
-          if (uploadId !== currentUploadId.current) break;
+          if (uploadId !== currentUploadId.current) break; // Abort on new upload
           
           const row = { ...rowsToEnrich[i] };
           if (!row.needsEnrichment) continue;
           
+          let retries = 3;
           let success = false;
           let name = 'منتج غير معروف';
-          let phoneToSet = '';
           
-          if (listJoinMap.has(row.nid)) {
-             const m = listJoinMap.get(row.nid);
-             name = (m.description && m.description.trim() !== '') ? m.description : 'منتج بدون اسم';
-             phoneToSet = m.phone;
-             success = true;
-          } else {
-             const cached = getCachedName(row.nid);
-             if (cached) {
-                name = cached.description || 'منتج بدون اسم';
-                phoneToSet = cached.phone || '';
-                success = true;
-             }
-          }
-          
-          if (!success) {
-              await new Promise(r => setTimeout(r, throttleDelay));
+          while (retries > 0 && !success) {
+            if (uploadId !== currentUploadId.current) break;
+            try {
+              const res = await fetch(`https://api.intigo.net/api/v3/parcels/${encodeURIComponent(row.nid)}`, {
+                headers: { 'X-API-Key': apiKey }
+              });
               
-              let retries = 3;
-              while (retries > 0 && !success) {
-                if (uploadId !== currentUploadId.current) break;
-                try {
-                  const res = await fetch(`https://api.intigo.net/api/v3/parcels/${encodeURIComponent(row.nid)}`, {
-                    headers: { 'X-API-Key': apiKey }
-                  });
-                  
-                  if (res.status === 401) {
-                    setError('مفتاح API غير صالح. يرجى التحقق من الإعدادات.');
-                    setIsEnriching(false);
-                    return;
-                  }
-                  if (res.status === 429 || res.status >= 500) {
-                     throttleDelay = Math.min(throttleDelay * 2, 2000);
-                     throw new Error(`Rate ${res.status}`);
-                  }
-                  
-                  if (res.status === 404) {
-                    name = 'منتج غير معروف';
-                    success = true;
-                    setCachedName(row.nid, { description: name, phone: '' });
-                  } else if (res.ok) {
-                    const jsonData = await res.json();
-                    const parcelData = jsonData.data || jsonData.parcel || jsonData.result || jsonData;
-                    const productName = parcelData.description || parcelData.product_name || parcelData.name || parcelData.content || parcelData.item_name || 'منتج بدون اسم';
-                    const fetchedPhone = parcelData.client_phone || parcelData.customer_phone || parcelData.phone || parcelData.receiver_phone || parcelData.telephone || '';
-                    const finalProductName = (productName && productName.trim() !== '') ? productName : 'منتج بدون اسم';
-                    
-                    if (isFirstSuccess) {
-                      console.log('🔍 Intigo API Debug - First Response Structure:', jsonData);
-                      console.log('🔍 Intigo API Debug - Extracted Product Name:', finalProductName);
-                      isFirstSuccess = false;
-                    }
-                    
-                    name = finalProductName;
-                    phoneToSet = fetchedPhone;
-                    success = true;
-                    setCachedName(row.nid, { description: name, phone: fetchedPhone });
-                    throttleDelay = Math.max(30, throttleDelay * 0.9);
-                  } else {
-                    throw new Error(`Status ${res.status}`);
-                  }
-                } catch (err) {
-                  retries--;
-                  if (retries === 0) {
-                    errors++;
-                    name = 'خطأ في الجلب';
-                  } else {
-                    await new Promise(r => setTimeout(r, Math.max(500, throttleDelay)));
-                  }
-                }
+              if (res.status === 401) {
+                setError('مفتاح API غير صالح. يرجى التحقق من الإعدادات.');
+                setIsEnriching(false);
+                return;
               }
+              
+              if (res.status === 404) {
+                name = 'منتج غير معروف';
+                success = true;
+              } else if (res.ok) {
+                const jsonData = await res.json();
+                
+                const parcelData = jsonData.data || jsonData.parcel || jsonData.result || jsonData;
+                
+                const productName =
+                  parcelData.description ||
+                  parcelData.product_name ||
+                  parcelData.name ||
+                  parcelData.content ||
+                  parcelData.item_name ||
+                  'منتج بدون اسم';
+                  
+                const fetchedPhone = parcelData.client_phone || parcelData.customer_phone || parcelData.phone || parcelData.receiver_phone || parcelData.telephone || '';
+                  
+                const finalProductName = (productName && productName.trim() !== '') ? productName : 'منتج بدون اسم';
+                
+                if (isFirstSuccess) {
+                  console.log('🔍 Intigo API Debug - First Response Structure:', jsonData);
+                  console.log('🔍 Intigo API Debug - Extracted Product Name:', finalProductName);
+                  console.log('🔍 Intigo API Debug - Extracted Phone:', fetchedPhone);
+                  isFirstSuccess = false;
+                }
+                
+                name = finalProductName;
+                if (!row.phone && fetchedPhone) row.phone = fetchedPhone;
+                success = true;
+              } else {
+                throw new Error(`Status ${res.status}`);
+              }
+            } catch (err) {
+              retries--;
+              if (retries === 0) {
+                errors++;
+                name = 'خطأ في الجلب';
+              } else {
+                await new Promise(r => setTimeout(r, 200));
+              }
+            }
           }
           
           if (!success) {
@@ -789,27 +521,29 @@
             row.hasError = false;
             row.needsEnrichment = false;
             row.productName = name;
-            if (!row.phone && phoneToSet) row.phone = phoneToSet;
           }
           
           updatedRowsPart.push(row);
           current++;
           
-          if (updatedRowsPart.length >= 10 || current === rowsToEnrich.length) {
-            const batch = [...updatedRowsPart];
+          if (current % 5 === 0 || current === rowsToEnrich.length) {
+            setEnrichProgress(p => ({ ...p, current, errors }));
             
-            const updateArr = (arr) => arr.map(pr => {
-               const updated = batch.find(ur => ur.id === pr.id);
-               return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError } : pr;
-            });
-            
-            setMasterRows(prev => updateArr(prev));
-            setCakadoRows(prev => updateArr(prev));
-            setBalkisRows(prev => updateArr(prev));
-            
-            updatedRowsPart = [];
-            setEnrichProgress({ current, total: rowsToEnrich.length, errors });
+            if (updatedRowsPart.length > 0) {
+                const part = [...updatedRowsPart];
+                updatedRowsPart = [];
+                const updateArr = (arr) => arr.map(pr => {
+                   const updated = part.find(ur => ur.id === pr.id);
+                   return updated ? { ...pr, productName: updated.productName, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError } : pr;
+                });
+                
+                setMasterRows(prev => updateArr(prev));
+                setCakadoRows(prev => updateArr(prev));
+                setBalkisRows(prev => updateArr(prev));
+            }
           }
+          
+          await new Promise(r => setTimeout(r, 80)); // Rate limit
         }
         
         if (uploadId === currentUploadId.current) {
@@ -894,10 +628,6 @@
             setMasterRows(result.rows);
             setActiveCarrier(template);
             
-            if (result.duplicateNids && result.duplicateNids.length > 0) {
-               setDuplicateNids(result.duplicateNids);
-            }
-            
             if (result.autoFees) {
               setAutoFeesInfo(result.autoFees);
               setCakadoFees(result.autoFees);
@@ -933,67 +663,39 @@
       }, [handleFileUpload]);
 
       // Number Formatting
+      const formatTND = (val) => val.toLocaleString('ar-TN', { style: 'currency', currency: 'TND', minimumFractionDigits: 3 });
 
       const calculateStats = (rows, fees) => {
         let totalSales = 0;
-        let totalRuleFeeDelivery = 0;
-        let totalRuleFeeReturn = 0;
-        let totalCarrierFee = 0;
-        let hasCarrierFee = false;
-        
-        let prepaidCount = 0;
-        let counts = { delivered: 0, returned: 0, in_progress: 0, cancelled: 0, exchange: 0 };
-        
-        const newUnknownGovs = [];
+        let totalDeliveryFees = 0;
+        let totalReturnFees = 0;
 
         rows.forEach(row => {
-          if (counts[row.status] !== undefined) counts[row.status]++;
-          
-          if (row.carrier_fee != null) {
-            hasCarrierFee = true;
-            totalCarrierFee += row.carrier_fee;
-          }
-          
-          if (row.status === 'delivered') {
-             if (row.totalSales === 0) prepaidCount++;
-             totalSales += row.totalSales;
-             
-             let rf = (row.carrier === 'INTIGO') ? 7 : (fees.delivery || 0);
-             row.rule_fee = rf;
-             totalRuleFeeDelivery += rf;
-          } else if (row.status === 'returned') {
-             let rf = fees.return || 0;
-             if (row.carrier === 'INTIGO') {
-                const govInfo = resolveGov(row.city);
-                rf = govInfo.isGrandTunis ? 1 : 2;
-                if (govInfo.unknown) newUnknownGovs.push(govInfo.raw);
-             }
-             row.rule_fee = rf;
-             totalRuleFeeReturn += rf;
+          if (row.carrier === 'INTIGO') {
+            if (row.status === 'delivered') {
+              totalSales += row.totalSales;
+              totalDeliveryFees += 7;
+            } else if (row.status === 'returned') {
+              const grandTunis = ['ariana', 'tunis', 'mannouba', 'ben arous'];
+              const city = String(row.city || '').trim().toLowerCase();
+              if (grandTunis.includes(city)) {
+                totalReturnFees += 1;
+              } else {
+                totalReturnFees += 2;
+              }
+            }
           } else {
-             row.rule_fee = 0;
-          }
-          
-          if (row.carrier_fee != null) {
-             row.fee_delta = round3(row.carrier_fee - row.rule_fee);
+            if (row.status === 'delivered') {
+              totalSales += row.totalSales;
+              totalDeliveryFees += fees.delivery || 0;
+            } else if (row.status === 'returned') {
+              totalReturnFees += fees.return || 0;
+            }
           }
         });
         
-        const netRule = totalSales - totalRuleFeeDelivery - totalRuleFeeReturn;
-        const netCarrier = hasCarrierFee ? (totalSales - totalCarrierFee) : null;
-        
-        return { 
-           totalSales: round3(totalSales), 
-           totalRuleFeeDelivery: round3(totalRuleFeeDelivery), 
-           totalRuleFeeReturn: round3(totalRuleFeeReturn), 
-           netRule: round3(netRule), 
-           netCarrier: hasCarrierFee ? round3(netCarrier) : null,
-           hasCarrierFee,
-           count: rows.length,
-           counts,
-           prepaidCount,
-           newUnknownGovs: [...new Set(newUnknownGovs)]
-        };
+        const netRevenue = totalSales - totalDeliveryFees - totalReturnFees;
+        return { totalSales, totalDeliveryFees, totalReturnFees, netRevenue, count: rows.length };
       };
 
       const getDerivedView = (sourceArray) => {
@@ -1014,8 +716,6 @@
           // Apply Filter
           if (filterStatus === 'delivered') res = res.filter(r => r.status === 'delivered');
           if (filterStatus === 'returned') res = res.filter(r => r.status === 'returned');
-          if (filterStatus === 'in_progress') res = res.filter(r => r.status === 'in_progress' || r.status === 'return_in_progress');
-          if (filterStatus === 'cancelled') res = res.filter(r => r.status === 'cancelled');
           if (filterStatus === 'error') res = res.filter(r => r.hasError);
           
           // Apply Sort
@@ -1059,36 +759,24 @@
       };
 
       const moveSelected = (targetZone) => {
-        const idsToMove = new Set(selectedIds);
+        const toMove = [];
+        const newMaster = [];
+        masterRows.forEach(r => selectedIds.has(r.id) ? toMove.push(r) : newMaster.push(r));
         
-        setMasterRows(prev => {
-           const toKeep = prev.filter(r => !idsToMove.has(r.id));
-           if (targetZone === 'master') {
-              const fromCakado = cakadoRows.filter(r => idsToMove.has(r.id));
-              const fromBalkis = balkisRows.filter(r => idsToMove.has(r.id));
-              const fromMaster = prev.filter(r => idsToMove.has(r.id)); // in case they were already there, though shouldn't happen normally, wait... Actually we need to gather all first.
-           }
-           // Wait, a functional updater for 3 arrays that depend on each other's previous states is tricky.
-           // Since React state updates in one batch, it's safer to use the closure for gathering if we are sure it's the latest, but functional is required.
-           return toKeep; // Wait, I will write this better
-        });
+        const newCakado = [];
+        cakadoRows.forEach(r => selectedIds.has(r.id) ? toMove.push(r) : newCakado.push(r));
         
-        // Actually, let's gather from all first:
-        const allRows = [...masterRows, ...cakadoRows, ...balkisRows];
-        const movingRows = allRows.filter(r => idsToMove.has(r.id));
-        
-        setMasterRows(prev => {
-           const kept = prev.filter(r => !idsToMove.has(r.id));
-           return targetZone === 'master' ? [...kept, ...movingRows] : kept;
-        });
-        setCakadoRows(prev => {
-           const kept = prev.filter(r => !idsToMove.has(r.id));
-           return targetZone === 'cakado' ? [...kept, ...movingRows] : kept;
-        });
-        setBalkisRows(prev => {
-           const kept = prev.filter(r => !idsToMove.has(r.id));
-           return targetZone === 'balkis' ? [...kept, ...movingRows] : kept;
-        });
+        const newBalkis = [];
+        balkisRows.forEach(r => selectedIds.has(r.id) ? toMove.push(r) : newBalkis.push(r));
+
+        if (targetZone === 'master') setMasterRows([...newMaster, ...toMove]);
+        else setMasterRows(newMaster);
+
+        if (targetZone === 'cakado') setCakadoRows([...newCakado, ...toMove]);
+        else setCakadoRows(newCakado);
+
+        if (targetZone === 'balkis') setBalkisRows([...newBalkis, ...toMove]);
+        else setBalkisRows(newBalkis);
 
         setSelectedIds(new Set());
       };
@@ -1104,22 +792,6 @@
 
       const renderTable = (rows, title, zone, selectable = false, accentColor = '') => {
         const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
-        const delCount = rows.filter(r=>r.status==='delivered').length;
-        const retCount = rows.filter(r=>r.status==='returned').length;
-        const inProgCount = rows.filter(r=>r.status==='in_progress' || r.status==='return_in_progress').length;
-        const cancelCount = rows.filter(r=>r.status==='cancelled').length;
-        const exchCount = rows.filter(r=>r.status==='exchange').length;
-        
-        let headerCounts = [];
-        if (delCount > 0) headerCounts.push('مسلّم ' + delCount);
-        if (retCount > 0) headerCounts.push('مسترجع ' + retCount);
-        if (inProgCount > 0) headerCounts.push('قيد التنفيذ ' + inProgCount);
-        if (cancelCount > 0) headerCounts.push('ملغي ' + cancelCount);
-        if (exchCount > 0) headerCounts.push('تبادل ' + exchCount);
-        
-        const prepaidCount = rows.filter(r=>r.status==='delivered' && r.totalSales === 0).length;
-        if (prepaidCount > 0) headerCounts.push('مدفوع مسبقاً: ' + prepaidCount);
-
         return (
           <div 
             className="bg-surface rounded-xl shadow-sm border border-line flex flex-col h-full min-h-[400px] relative overflow-hidden transition-transform duration-200"
@@ -1152,9 +824,9 @@
                 )}
                 <span className="font-display text-lg text-ink">{title}</span>
               </div>
-              <div className="flex flex-col items-end text-right">
+              <div className="flex flex-col items-end">
                 <span className="bg-line text-ink text-xs px-2 py-0.5 rounded-full tabular-nums font-bold">{rows.length}</span>
-                <span className="text-[10px] text-ink-faint mt-1 tabular-nums max-w-[200px] break-words">{headerCounts.join(' • ')}</span>
+                <span className="text-[10px] text-ink-faint mt-1 tabular-nums">مسلّم {rows.filter(r=>r.status==='delivered').length} • مسترجع {rows.filter(r=>r.status==='returned').length}</span>
               </div>
             </div>
             
@@ -1165,19 +837,7 @@
                 </div>
               )}
               {rows.map((row, i) => {
-                const govInfo = resolveGov(row.city);
-                
-                const statusPills = {
-                  'delivered': { label: 'مُسلّم', colors: 'bg-pos/10 text-pos' },
-                  'returned': { label: 'مسترجع', colors: 'bg-neg/10 text-neg' },
-                  'cancelled': { label: 'ملغي', colors: 'bg-ink-faint/10 text-ink-faint line-through' },
-                  'exchange': { label: 'تبادل', colors: 'bg-warn/10 text-warn' },
-                  'in_progress': { label: 'قيد التنفيذ', colors: 'bg-brand/10 text-brand' },
-                  'return_in_progress': { label: 'إرجاع قيد التنفيذ', colors: 'bg-brand/10 text-brand' },
-                  'other': { label: 'أخرى', colors: 'bg-surface-2 text-ink-soft' }
-                };
-                const pill = statusPills[row.status] || statusPills['other'];
-
+                const isGrandTunis = ['ariana', 'tunis', 'mannouba', 'ben arous'].includes(String(row.city || '').trim().toLowerCase());
                 return (
                   <div
                     key={row.id}
@@ -1193,8 +853,8 @@
                     <div className="flex items-start gap-3">
                       {selectable && (
                         <input 
-                           type="checkbox" 
-                           className="w-5 h-5 mt-0.5 rounded cursor-pointer accent-brand"
+                          type="checkbox" 
+                          className="w-5 h-5 mt-0.5 rounded cursor-pointer accent-brand"
                           checked={selectedIds.has(row.id)}
                           onChange={(e) => toggleSelect(e, row.id)}
                           onClick={(e) => e.stopPropagation()}
@@ -1210,46 +870,33 @@
                         <div className="flex flex-wrap items-center gap-2 text-[11px]">
                           <span className="font-mono text-ink-faint uppercase tracking-wider bg-surface-2 px-1.5 py-0.5 rounded" dir="ltr">{row.nid || row.barcode || 'N/A'}</span>
                           {row.city && (
-                            <span className={`px-1.5 py-0.5 rounded ${row.carrier === 'INTIGO' ? (govInfo.isGrandTunis ? 'bg-brand/10 text-brand' : (govInfo.unknown ? 'border border-warn text-warn' : 'bg-warn/10 text-warn')) : 'bg-surface-2 text-ink-soft'}`}>
-                              {row.city} {row.carrier === 'INTIGO' && govInfo.isGrandTunis && 'إرجاع 1'}
-                              {row.carrier === 'INTIGO' && !govInfo.isGrandTunis && 'إرجاع 2'}
+                            <span className={`px-1.5 py-0.5 rounded ${row.carrier === 'INTIGO' ? (isGrandTunis ? 'bg-brand/10 text-brand' : 'bg-warn/10 text-warn') : 'bg-surface-2 text-ink-soft'}`}>
+                              {row.city}
                             </span>
                           )}
                           {row.phone && (
                             <span className="text-ink-soft bg-surface-2 px-1.5 py-0.5 rounded" dir="ltr">{row.phone}</span>
                           )}
-                          {row.status === 'delivered' && row.totalSales === 0 && (
-                            <span className="bg-pos/20 text-pos px-1.5 py-0.5 rounded font-medium">مدفوع مسبقاً</span>
-                          )}
                         </div>
                         <div className="flex justify-between items-center mt-1">
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${pill.colors}`} title={row.originalStatusText}>
-                              {pill.label} {row.status === 'in_progress' && '⚠'}
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${row.status === 'delivered' ? 'bg-pos/10 text-pos' : 'bg-neg/10 text-neg'}`}>
+                              {row.status === 'delivered' ? 'مُسلّم' : 'مسترجع'}
                             </span>
                             {row.hasError && (
-                              <button onClick={(e) => handleRetryEnrichment(e, row)} className="text-[11px] text-brand hover:underline flex items-center gap-1 min-h-[44px] px-2">
+                              <button onClick={(e) => handleRetryEnrichment(e, row)} className="text-[11px] text-brand hover:underline flex items-center gap-1">
                                 ⚠ إعادة المحاولة
                               </button>
                             )}
                           </div>
-                          
-                          {row.carrier_fee != null && (
-                            <div className="flex flex-col text-[10px] items-end" dir="ltr">
-                               <span className={`tabular-nums font-mono ${row.fee_delta < 0 ? 'text-neg' : (row.fee_delta > 0 ? 'text-pos' : 'text-ink-soft opacity-60')}`}>
-                                 {row.fee_delta < 0 ? '−' : (row.fee_delta > 0 ? '+' : '')}{formatTND(Math.abs(row.fee_delta))}
-                               </span>
-                            </div>
-                          )}
-                          
                           <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity focus-within:opacity-100">
                             {zone === 'master' ? (
                               <>
-                                <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'cakado'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ كاكادو</button>
-                                <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'balkis'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ بلقيس</button>
+                                <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'cakado'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[32px]">→ كاكادو</button>
+                                <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'balkis'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[32px]">→ بلقيس</button>
                               </>
                             ) : (
-                              <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'master'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">↩ إلغاء</button>
+                              <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'master'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[32px]">↩ إلغاء</button>
                             )}
                           </div>
                         </div>
@@ -1300,47 +947,30 @@
       };
 
       const BrandSummaryCard = ({ title, stats }) => (
-        <div className="bg-surface rounded-xl shadow-sm border border-line p-5 flex-1 flex flex-col justify-between surface-highlight transition-all">
+        <div className="bg-surface rounded-xl shadow-sm border border-line p-5 flex-1 flex flex-col justify-between surface-highlight">
           <h3 className="text-lg font-display text-ink mb-4">{title}</h3>
           <div className="flex flex-col gap-3">
             <div className="flex justify-between items-center text-sm">
               <span className="text-ink-soft">إجمالي المبيعات</span>
-              <span className="font-medium text-ink tabular-nums">{formatTND(stats.totalSales)} د.ت</span>
+              <span className="font-medium text-ink tabular-nums">{formatTND(stats.totalSales)}</span>
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-ink-soft">رسوم التوصيل</span>
-              <span className="tabular-nums text-neg" dir="ltr">−{formatTND(stats.totalRuleFeeDelivery)} د.ت</span>
+              <span className="tabular-nums text-neg" dir="ltr">−{stats.totalDeliveryFees.toFixed(3)} TND</span>
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-ink-soft">رسوم الإرجاع</span>
-              <span className="tabular-nums text-neg" dir="ltr">−{formatTND(stats.totalRuleFeeReturn)} د.ت</span>
+              <span className="tabular-nums text-neg" dir="ltr">−{stats.totalReturnFees.toFixed(3)} TND</span>
             </div>
           </div>
-          <div className="pt-4 mt-4 border-t border-line flex flex-col items-start gap-4" aria-live="polite">
-            <div>
-               <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">صافي وفق القاعدة</span>
-               <span className="text-4xl sm:text-5xl font-mono font-extrabold text-ink leading-tight tabular-nums tracking-tight"><AnimatedNumber value={stats.netRule} /></span>
-            </div>
-            {stats.hasCarrierFee && (
-               <div className="w-full flex justify-between bg-surface-2 p-3 rounded-lg border border-line mt-2">
-                  <div className="flex flex-col">
-                     <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-0.5">صافي وفق الفاتورة</span>
-                     <span className="text-lg font-mono font-bold text-ink tabular-nums"><AnimatedNumber value={stats.netCarrier} /></span>
-                  </div>
-                  <div className="flex flex-col text-right">
-                     <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-0.5">الفرق</span>
-                     <span className={`text-lg font-mono font-bold tabular-nums ${stats.netCarrier - stats.netRule < 0 ? 'text-neg' : (stats.netCarrier - stats.netRule > 0 ? 'text-pos' : 'text-ink-soft')}`} dir="ltr">
-                        {stats.netCarrier - stats.netRule < 0 ? '−' : (stats.netCarrier - stats.netRule > 0 ? '+' : '')}
-                        {formatTND(Math.abs(stats.netCarrier - stats.netRule))}
-                     </span>
-                  </div>
-               </div>
-            )}
+          <div className="pt-4 mt-4 border-t border-line flex flex-col items-start">
+            <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">صافي الإيرادات / NET</span>
+            <span className="text-4xl sm:text-5xl font-mono font-extrabold text-ink leading-tight tabular-nums tracking-tight"><AnimatedNumber value={stats.netRevenue} /></span>
           </div>
         </div>
       );
 
-      const netTotalRevenue = cakadoStats.netRule + balkisStats.netRule;
+      const netTotalRevenue = cakadoStats.netRevenue + balkisStats.netRevenue;
       
       const carrierBadge = activeCarrier === 'CONVERTY' ? 'First Delivery' :
                            activeCarrier === 'LOGISTA' ? 'BigBoss' :
@@ -1364,15 +994,15 @@
                       {carrierBadge}
                     </span>
                     {isEnriching && (
-                       <div className="w-16 h-1 bg-surface-2 rounded-full overflow-hidden ml-2" aria-live="polite" aria-label={`جاري الجلب: ${enrichProgress.current} من ${enrichProgress.total}`}>
+                       <div className="w-16 h-1 bg-surface-2 rounded-full overflow-hidden ml-2">
                          <div className="bg-brand h-full transition-all duration-300" style={{ width: `${Math.max(5, (enrichProgress.current / (enrichProgress.total||1)) * 100)}%` }}></div>
                        </div>
                     )}
                   </div>
 
-                  <div className="flex flex-col items-end md:items-center shrink-0" aria-live="polite">
+                  <div className="flex flex-col items-end md:items-center shrink-0">
                     <span className="text-[10px] text-ink-faint uppercase tracking-wider mb-0.5">صافي الإيرادات / NET</span>
-                    <span className="font-mono font-extrabold text-2xl md:text-3xl leading-none text-ink tabular-nums" dir="ltr">
+                    <span className="font-mono font-extrabold text-2xl md:text-3xl leading-none text-ink tabular-nums">
                       <AnimatedNumber value={netTotalRevenue} />
                     </span>
                   </div>
@@ -1400,7 +1030,7 @@
 
                   {/* Row C: Controls */}
                   <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 w-full md:w-auto">
-                    <span className={`shrink-0 w-2.5 h-2.5 rounded-full mx-1 ${healthStatus === 'connected' ? 'bg-pos' : healthStatus === 'error' ? 'bg-warn animate-pulse' : healthStatus === 'checking' ? 'bg-brand animate-pulse' : 'bg-neg'}`} title={healthStatus === 'connected' ? 'متصل' : healthStatus === 'error' ? 'غير متصل' : healthStatus === 'checking' ? 'جاري التحقق...' : 'مفتاح API غير صالح'}></span>
+                    <span className={`shrink-0 w-2.5 h-2.5 rounded-full mx-1 ${intigoApiKey ? (error ? 'bg-warn animate-pulse' : 'bg-pos') : 'bg-neg'}`} title={intigoApiKey ? (error ? 'خطأ في الاتصال' : 'متصل') : 'غير متصل'}></span>
 
                     <button
                       type="button"
@@ -1457,15 +1087,14 @@
                 />
               </div>
               <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar">
-                {['all', 'delivered', 'returned', 'in_progress', 'cancelled', 'error'].map(status => {
-                  const label = status === 'all' ? 'الكل' : status === 'delivered' ? 'مُسلّم' : status === 'returned' ? 'مسترجع' : status === 'in_progress' ? 'قيد التنفيذ' : status === 'cancelled' ? 'ملغي' : '⚠ خطأ';
+                {['all', 'delivered', 'returned', 'error'].map(status => {
+                  const label = status === 'all' ? 'الكل' : status === 'delivered' ? 'مُسلّم' : status === 'returned' ? 'مسترجع' : '⚠ خطأ';
                   const active = filterStatus === status;
                   return (
                     <button 
                       key={status}
-                      aria-pressed={active}
                       onClick={() => setFilterStatus(status)}
-                      className={`focus-visible:ring-2 focus-visible:ring-brand focus:outline-none whitespace-nowrap px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium transition-colors ${active ? 'bg-ink text-surface' : 'bg-surface border border-line text-ink-soft hover:bg-surface-2'}`}
+                      className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${active ? 'bg-ink text-surface' : 'bg-surface border border-line text-ink-soft hover:bg-surface-2'}`}
                     >
                       {label}
                     </button>
@@ -1503,7 +1132,6 @@
                 </div>
                 <span className="font-display text-xl text-ink mb-2">اسحب الطلبات إلى هنا</span>
                 <span className="text-sm text-ink-soft">أو انقر لاختيار ملف (.xlsx, .csv)</span>
-                <span className="text-xs text-ink-faint mt-4 bg-surface-2 px-3 py-1.5 rounded-full">الحالات محدّثة حتى تاريخ تصدير الملف — أعد رفع الملف لتحديثها.</span>
                 <input type="file" accept=".xlsx,.csv" className="hidden" onChange={onFileInputChange} />
               </label>
             )}
@@ -1521,42 +1149,6 @@
                 <p className="text-sm font-medium">تم ضبط الرسوم تلقائياً من Logista.</p>
               </div>
             )}
-            
-            {duplicateNids.length > 0 && (
-              <div className="bg-warn/10 text-warn border border-warn/20 rounded-lg p-4 flex items-start gap-3 relative animate-in fade-in slide-in-from-top-2">
-                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                <div className="flex-1">
-                  <p className="text-sm font-medium mb-1">تم العثور على {duplicateNids.length} معرفات (NID) مكررة في الملف وتم تجاهل التكرار:</p>
-                  <p className="text-xs opacity-80 font-mono" dir="ltr">{duplicateNids.slice(0, 6).join(', ')}{duplicateNids.length > 6 ? ' و...' : ''}</p>
-                </div>
-                <button onClick={() => setDuplicateNids([])} className="absolute left-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
-                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-              </div>
-            )}
-            
-            {!dismissedUnknownGovs && (cakadoStats.newUnknownGovs.length > 0 || balkisStats.newUnknownGovs.length > 0) && (
-               (() => {
-                 const unk = [...new Set([...cakadoStats.newUnknownGovs, ...balkisStats.newUnknownGovs])];
-                 if (unk.length > 0) {
-                   return (
-                     <div className="bg-warn/10 text-warn border border-warn/20 rounded-lg p-4 flex items-start gap-3 relative animate-in fade-in slide-in-from-top-2">
-                        <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                        <div className="flex-1">
-                           <p className="text-sm font-medium mb-1">ولايات غير معروفة في خريطة الرسوم (تم احتساب 2 د.ت):</p>
-                           <p className="text-xs opacity-80" dir="ltr">{unk.slice(0, 6).join(', ')}{unk.length > 6 ? ' و...' : ''}</p>
-                           <p className="text-xs opacity-80 mt-1">أضفها لتفادي الخطأ.</p>
-                        </div>
-                        <button onClick={() => setDismissedUnknownGovs(true)} className="absolute left-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
-                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                     </div>
-                   );
-                 }
-                 return null;
-               })()
-            )}
-            
 
             {(masterRows.length > 0 || cakadoRows.length > 0 || balkisRows.length > 0) && (
               <>
