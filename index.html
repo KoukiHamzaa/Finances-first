@@ -608,12 +608,12 @@
            if (!res.ok) {
               res = await fetch('https://api.intigo.net/api/v3/health');
               if (res.ok) { setHealthStatus('connected'); return; }
-              setHealthStatus('error');
+              setHealthStatus('unauthorized');
               return;
            }
            setHealthStatus('connected');
         } catch (e) {
-           setHealthStatus('error');
+           setHealthStatus('unauthorized');
         }
       }, []);
       
@@ -654,18 +654,55 @@
       };
 
       const CACHE_KEY_PREFIX = 'intigo_nid_';
+      
+      const isValidName = (name) => {
+         if (!name || typeof name !== 'string') return false;
+         const t = name.trim().toLowerCase();
+         if (!t) return false;
+         const invalid = ["منتج بدون اسم","منتج غير معروف","بدون اسم","غير معروف","unknown","n/a","na","-","—"];
+         return !invalid.includes(t);
+      };
+
+      const handleClearCache = () => {
+         const keysToRemove = [];
+         for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(CACHE_KEY_PREFIX)) {
+               keysToRemove.push(key);
+            }
+         }
+         keysToRemove.forEach(k => localStorage.removeItem(k));
+         
+         if (activeCarrier === 'INTIGO') {
+            if (!intigoApiKey || !intigoApiKey.trim()) {
+               setError('أدخل مفتاح Intigo API لجلب أسماء المنتجات من الخادم.');
+               return;
+            }
+            const updateArr = (arr) => arr.map(r => ({ ...r, needsEnrichment: true, enrichState: 'pending', productName: 'جاري الجلب...' }));
+            let allToEnrich = [];
+            setMasterRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
+            setCakadoRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
+            setBalkisRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
+            
+            setTimeout(() => enrichIntigoRows(allToEnrich, intigoApiKey, currentUploadId.current), 0);
+         }
+      };
       const getCachedName = (nid) => {
         try {
            const val = localStorage.getItem(CACHE_KEY_PREFIX + nid);
            if (val) {
               const obj = JSON.parse(val);
-              if (obj && Date.now() - obj.fetchedAt < 7 * 24 * 60 * 60 * 1000) return obj;
+              if (obj && Date.now() - obj.fetchedAt < 7 * 24 * 60 * 60 * 1000) {
+                 if (isValidName(obj.description)) return obj;
+                 else localStorage.removeItem(CACHE_KEY_PREFIX + nid);
+              }
            }
         } catch (e) {}
         return null;
       };
       
       const setCachedName = (nid, data) => {
+         if (!isValidName(data.description)) return;
          try {
             localStorage.setItem(CACHE_KEY_PREFIX + nid, JSON.stringify({ ...data, fetchedAt: Date.now() }));
          } catch(e) {}
@@ -688,13 +725,25 @@
               const jsonData = await res.json();
               let arr = jsonData.data || jsonData.parcels || jsonData.result || [];
               if (!Array.isArray(arr)) arr = [arr];
+              let loggedList = false;
               for (const p of arr) {
                  if (!p) continue;
+                 
+                 if (!loggedList) {
+                    try {
+                       console.log('🔍 Intigo LIST shape:', JSON.stringify(jsonData).slice(0,800));
+                       console.log('🔍 Intigo LIST first parcel keys:', Object.keys(p));
+                    } catch(e) {}
+                    loggedList = true;
+                 }
+                 
                  const n = String(p.nid || p.id || p.tracking || '').trim();
                  if (!n) continue;
-                 const productName = p.description || p.product_name || p.name || p.content || p.item_name || 'منتج بدون اسم';
+                 const productName = p.description || p.product_name || p.name || p.content || p.item_name || null;
                  const fetchedPhone = p.client_phone || p.customer_phone || p.phone || p.receiver_phone || p.telephone || '';
-                 listJoinMap.set(n, { description: productName, phone: fetchedPhone });
+                 if (isValidName(productName)) {
+                    listJoinMap.set(n, { description: productName.trim(), phone: fetchedPhone });
+                 }
               }
            }
         } catch (e) {}
@@ -711,13 +760,13 @@
           
           if (listJoinMap.has(row.nid)) {
              const m = listJoinMap.get(row.nid);
-             name = (m.description && m.description.trim() !== '') ? m.description : 'منتج بدون اسم';
+             name = m.description;
              phoneToSet = m.phone;
              success = true;
           } else {
              const cached = getCachedName(row.nid);
              if (cached) {
-                name = cached.description || 'منتج بدون اسم';
+                name = cached.description;
                 phoneToSet = cached.phone || '';
                 success = true;
              }
@@ -736,6 +785,31 @@
                   
                   if (res.status === 401) {
                     setError('مفتاح API غير صالح. يرجى التحقق من الإعدادات.');
+                    setHealthStatus('unauthorized');
+                    row.enrichState = 'error';
+                    name = 'مفتاح API غير صالح';
+                    row.hasError = true;
+                    row.needsEnrichment = true;
+                    row.productName = name;
+                    
+                    const batch = [...updatedRowsPart, row];
+                    
+                    // also mark any remaining rows in rowsToEnrich as error
+                    for (let j = i + 1; j < rowsToEnrich.length; j++) {
+                       const rem = { ...rowsToEnrich[j], enrichState: 'error', hasError: true, needsEnrichment: true, productName: 'توقف بسبب خطأ في المفتاح' };
+                       batch.push(rem);
+                    }
+
+                    const updateArr = (arr) => arr.map(pr => {
+                       const updated = batch.find(ur => ur.id === pr.id);
+                       return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
+                    });
+                    
+                    setMasterRows(prev => updateArr(prev));
+                    setCakadoRows(prev => updateArr(prev));
+                    setBalkisRows(prev => updateArr(prev));
+                    
+                    setEnrichProgress({ current: current + 1, total: rowsToEnrich.length, errors: errors + 1 });
                     setIsEnriching(false);
                     return;
                   }
@@ -745,27 +819,36 @@
                   }
                   
                   if (res.status === 404) {
-                    name = 'منتج غير معروف';
+                    row.enrichState = 'not_found';
+                    name = 'لم يُعثر عليه';
                     success = true;
-                    setCachedName(row.nid, { description: name, phone: '' });
+                    break;
                   } else if (res.ok) {
                     const jsonData = await res.json();
                     const parcelData = jsonData.data || jsonData.parcel || jsonData.result || jsonData;
-                    const productName = parcelData.description || parcelData.product_name || parcelData.name || parcelData.content || parcelData.item_name || 'منتج بدون اسم';
+                    const productName = parcelData.description || parcelData.product_name || parcelData.name || parcelData.content || parcelData.item_name || null;
                     const fetchedPhone = parcelData.client_phone || parcelData.customer_phone || parcelData.phone || parcelData.receiver_phone || parcelData.telephone || '';
-                    const finalProductName = (productName && productName.trim() !== '') ? productName : 'منتج بدون اسم';
                     
                     if (isFirstSuccess) {
                       console.log('🔍 Intigo API Debug - First Response Structure:', jsonData);
-                      console.log('🔍 Intigo API Debug - Extracted Product Name:', finalProductName);
+                      console.log('🔍 Intigo API Debug - Extracted Product Name:', productName);
                       isFirstSuccess = false;
                     }
                     
-                    name = finalProductName;
-                    phoneToSet = fetchedPhone;
-                    success = true;
-                    setCachedName(row.nid, { description: name, phone: fetchedPhone });
+                    if (isValidName(productName)) {
+                       name = productName.trim();
+                       phoneToSet = fetchedPhone;
+                       success = true;
+                       row.enrichState = 'fetched';
+                       setCachedName(row.nid, { description: name, phone: fetchedPhone });
+                    } else {
+                       row.enrichState = 'error';
+                       name = 'خطأ في الجلب';
+                       success = false;
+                       errors++;
+                    }
                     throttleDelay = Math.max(30, throttleDelay * 0.9);
+                    break;
                   } else {
                     throw new Error(`Status ${res.status}`);
                   }
@@ -773,6 +856,7 @@
                   retries--;
                   if (retries === 0) {
                     errors++;
+                    row.enrichState = 'error';
                     name = 'خطأ في الجلب';
                   } else {
                     await new Promise(r => setTimeout(r, Math.max(500, throttleDelay)));
@@ -781,16 +865,17 @@
               }
           }
           
-          if (!success) {
-            row.hasError = true;
-            row.needsEnrichment = true;
-            row.productName = 'خطأ في الجلب';
-          } else {
-            row.hasError = false;
-            row.needsEnrichment = false;
-            row.productName = name;
-            if (!row.phone && phoneToSet) row.phone = phoneToSet;
+          if (success && !row.enrichState) {
+             row.enrichState = 'fetched';
           }
+          if (!success && !row.enrichState) {
+             row.enrichState = 'error';
+          }
+          
+          row.hasError = row.enrichState === 'error';
+          row.needsEnrichment = row.enrichState === 'error' || row.enrichState === 'not_found';
+          row.productName = name;
+          if (!row.phone && phoneToSet) row.phone = phoneToSet;
           
           updatedRowsPart.push(row);
           current++;
@@ -800,7 +885,7 @@
             
             const updateArr = (arr) => arr.map(pr => {
                const updated = batch.find(ur => ur.id === pr.id);
-               return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError } : pr;
+               return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
             });
             
             setMasterRows(prev => updateArr(prev));
@@ -855,11 +940,17 @@
 
       const handleRetryEnrichment = (e, row) => {
         e.stopPropagation();
-        if (!intigoApiKey) {
-          setError('الرجاء إدخال مفتاح API أولاً');
+        if (!intigoApiKey || !intigoApiKey.trim()) {
+          setError('أدخل مفتاح Intigo API لجلب أسماء المنتجات من الخادم.');
           return;
         }
-        enrichIntigoRows([row], intigoApiKey, currentUploadId.current);
+        
+        const updateArr = (arr) => arr.map(r => r.id === row.id ? { ...r, enrichState: 'pending', productName: 'جاري الجلب...', hasError: false, needsEnrichment: true } : r);
+        setMasterRows(prev => updateArr(prev));
+        setCakadoRows(prev => updateArr(prev));
+        setBalkisRows(prev => updateArr(prev));
+
+        enrichIntigoRows([{ ...row, needsEnrichment: true }], intigoApiKey, currentUploadId.current);
       };
 
       const handleFileUpload = useCallback((file) => {
@@ -905,10 +996,14 @@
             }
             
             if (result.isIntigo) {
-              if (!intigoApiKey) {
-                setError('تنبيه: يرجى إدخال مفتاح Intigo API في الأعلى لجلب أسماء المنتجات، تمت إضافة الطلبات بدون أسماء.');
+              if (!intigoApiKey || !intigoApiKey.trim()) {
+                setError('أدخل مفتاح Intigo API لجلب أسماء المنتجات من الخادم.');
+                const blockedRows = result.rows.map(r => ({ ...r, enrichState: 'blocked', productName: '— (بانتظار المفتاح)', needsEnrichment: true, hasError: false }));
+                setMasterRows(blockedRows);
               } else {
-                enrichIntigoRows(result.rows, intigoApiKey, thisUploadId);
+                const pendingRows = result.rows.map(r => ({ ...r, enrichState: 'pending', needsEnrichment: true, hasError: false, productName: 'جاري الجلب...' }));
+                setMasterRows(pendingRows);
+                enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId);
               }
             }
           } catch (err) {
@@ -1202,7 +1297,22 @@
                       )}
                       <div className="flex-1 min-w-0 flex flex-col gap-2">
                         <div className="flex justify-between items-start gap-2">
-                          <span className="font-medium text-[14px] text-ink leading-tight">{row.productName}</span>
+                          <div className="flex items-start gap-2 min-w-0">
+                            {row.carrier === 'INTIGO' && (
+                               <span className="flex-shrink-0 mt-0.5" title={row.enrichState === 'fetched' ? 'تم جلب الاسم' : row.enrichState === 'blocked' ? 'بانتظار المفتاح' : row.enrichState === 'not_found' ? 'لم يُعثر على المنتج' : row.enrichState === 'error' ? 'فشل الطلب — أعد المحاولة' : 'جاري الجلب...'}>
+                                  {row.enrichState === 'fetched' ? <span className="text-pos">✓</span> :
+                                   (row.enrichState === 'blocked' || row.enrichState === 'not_found') ? <span className="text-warn">⚠</span> :
+                                   row.enrichState === 'error' ? <span className="text-neg">✗</span> :
+                                   <span className="text-brand animate-pulse">⏳</span>}
+                               </span>
+                            )}
+                            <span className="font-medium text-[14px] text-ink leading-tight flex flex-wrap items-center gap-1">
+                               {row.productName}
+                               {row.carrier === 'INTIGO' && String(row.productName).trim().toLowerCase() === 'colis' && (
+                                  <span className="text-warn text-[10px] ml-1 flex items-center" title="الوصف افتراضي من Intigo — لم يُحدَّد اسم منتج">⚠</span>
+                               )}
+                            </span>
+                          </div>
                           <span className="font-mono font-bold text-ink tabular-nums whitespace-nowrap text-[14px]" dir="ltr">
                             {row.status === 'delivered' ? formatTND(row.totalSales) : <span className="text-ink-faint">—</span>}
                           </span>
@@ -1236,7 +1346,7 @@
                           
                           {row.carrier_fee != null && (
                             <div className="flex flex-col text-[10px] items-end" dir="ltr">
-                               <span className={`tabular-nums font-mono ${row.fee_delta < 0 ? 'text-neg' : (row.fee_delta > 0 ? 'text-pos' : 'text-ink-soft opacity-60')}`}>
+                               <span className={`tabular-nums font-mono ${row.fee_delta > 0 ? 'text-neg' : (row.fee_delta < 0 ? 'text-pos' : 'text-ink-soft opacity-60')}`}>
                                  {row.fee_delta < 0 ? '−' : (row.fee_delta > 0 ? '+' : '')}{formatTND(Math.abs(row.fee_delta))}
                                </span>
                             </div>
@@ -1391,7 +1501,7 @@
                           setIntigoApiKey(e.target.value);
                           localStorage.setItem('intigoApiKey', e.target.value);
                         }}
-                        placeholder="مفتاح Intigo"
+                        placeholder="ألصق مفتاح Intigo API هنا"
                         className="bg-transparent border-none outline-none text-xs w-full text-ink font-mono tracking-widest"
                         dir="ltr"
                       />
@@ -1400,6 +1510,7 @@
 
                   {/* Row C: Controls */}
                   <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 w-full md:w-auto">
+                    <button onClick={handleClearCache} className="shrink-0 flex items-center gap-1.5 px-4 min-h-[44px] bg-transparent border border-line text-ink-soft hover:text-brand hover:border-brand transition-colors rounded-full text-xs font-bold" aria-label="مسح ذاكرة المنتجات" title="مسح ذاكرة المنتجات وتحديث الأسماء">مسح ذاكرة المنتجات</button>
                     <span className={`shrink-0 w-2.5 h-2.5 rounded-full mx-1 ${healthStatus === 'connected' ? 'bg-pos' : healthStatus === 'error' ? 'bg-warn animate-pulse' : healthStatus === 'checking' ? 'bg-brand animate-pulse' : 'bg-neg'}`} title={healthStatus === 'connected' ? 'متصل' : healthStatus === 'error' ? 'غير متصل' : healthStatus === 'checking' ? 'جاري التحقق...' : 'مفتاح API غير صالح'}></span>
 
                     <button
