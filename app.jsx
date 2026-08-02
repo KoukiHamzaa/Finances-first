@@ -1,7 +1,7 @@
 
 const { useState, useCallback, useMemo, useRef, useEffect, startTransition } = React;
 
-const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart }) => {
+const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart, zone, onMoveDirect, onRetry, i = 0 }) => {
 
                 const govInfo = resolveGov(row.city);
                 
@@ -25,7 +25,7 @@ const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart }
                     onClick={selectable ? (e) => onToggle(e, row.id) : undefined}
                     className={`bg-surface border p-3 rounded-xl shadow-sm transition-all duration-200 group relative
                       ${selectable ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : 'cursor-grab active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-md'} 
-                      ${selectedIds.has(row.id) ? 'border-brand ring-1 ring-brand bg-brand/5' : 'border-line'}
+                      ${selected ? 'border-brand ring-1 ring-brand bg-brand/5' : 'border-line'}
                     `}
                     style={i < 12 ? { animation: `fadeInUp 0.3s ease-out ${i * 0.03}s both` } : {}}
                   >
@@ -82,7 +82,7 @@ const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart }
                               {pill.label} {row.status === 'in_progress' && '⚠'}
                             </span>
                             {row.hasError && (
-                              <button onClick={(e) => handleRetryEnrichment(e, row)} className="text-[11px] text-brand hover:underline flex items-center gap-1 min-h-[44px] px-2">
+                              <button onClick={(e) => onRetry(e, row)} className="text-[11px] text-brand hover:underline flex items-center gap-1 min-h-[44px] px-2">
                                 ⚠ إعادة المحاولة
                               </button>
                             )}
@@ -98,12 +98,12 @@ const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart }
                           
                           <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity focus-within:opacity-100">
                             {zone === 'master' ? (
-                              <>
-                                <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'cakado'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ كاكادو</button>
-                                <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'balkis'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ بلقيس</button>
-                              </>
+                              <React.Fragment>
+                                <button onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'cakado'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ كاكادو</button>
+                                <button onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'balkis'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ بلقيس</button>
+                              </React.Fragment>
                             ) : (
-                              <button onClick={(e) => { e.stopPropagation(); moveSelectedDirectly(row, 'master'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">↩ إلغاء</button>
+                              <button onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'master'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">↩ إلغاء</button>
                             )}
                           </div>
                         </div>
@@ -179,9 +179,112 @@ const AnimatedNumber = React.memo(({ value }) => {
     return () => cancelAnimationFrame(requestRef.current);
   }, [value]);
 
-  return <>{formatTND(displayValue)}</>;
+  return <React.Fragment>{formatTND(displayValue)}</React.Fragment>;
 });
 
+const ZoneTable = React.memo(({ rows, title, zone, selectable = false, accentColor = '', selectedIds, onToggleSelectAll, onDrop, onToggleSelect, onDragStart, onMoveDirect, onRetry }) => {
+        const [visibleCount, setVisibleCount] = useState(20);
+        const sentinelRef = useRef(null);
+
+        useEffect(() => {
+          setVisibleCount(20);
+        }, [rows]);
+
+        useEffect(() => {
+          const observer = new IntersectionObserver(
+            (entries) => {
+              if (entries[0].isIntersecting && visibleCount < rows.length) {
+                setVisibleCount((prev) => prev + 20);
+              }
+            },
+            { rootMargin: '200px' }
+          );
+          if (sentinelRef.current) observer.observe(sentinelRef.current);
+          return () => observer.disconnect();
+        }, [visibleCount, rows.length]);
+
+        const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
+const delCount = rows.filter(r=>r.status==='delivered').length;
+        const retCount = rows.filter(r=>r.status==='returned').length;
+        const inProgCount = rows.filter(r=>r.status==='in_progress' || r.status==='return_in_progress').length;
+        const cancelCount = rows.filter(r=>r.status==='cancelled').length;
+        const exchCount = rows.filter(r=>r.status==='exchange').length;
+        
+        let headerCounts = [];
+        if (delCount > 0) headerCounts.push('مسلّم ' + delCount);
+        if (retCount > 0) headerCounts.push('مسترجع ' + retCount);
+        if (inProgCount > 0) headerCounts.push('قيد التنفيذ ' + inProgCount);
+        if (cancelCount > 0) headerCounts.push('ملغي ' + cancelCount);
+        if (exchCount > 0) headerCounts.push('تبادل ' + exchCount);
+        
+        const prepaidCount = rows.filter(r=>r.status==='delivered' && r.totalSales === 0).length;
+        if (prepaidCount > 0) headerCounts.push('مدفوع مسبقاً: ' + prepaidCount);
+
+        return (
+          <div 
+            className="bg-surface rounded-xl shadow-sm border border-line flex flex-col h-full min-h-[400px] relative overflow-hidden transition-transform duration-200"
+            onDrop={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '';
+              onDrop(e, zone);
+            }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.currentTarget.style.transform = 'translateY(-4px)';
+              e.currentTarget.style.boxShadow = accentColor ? `0 -2px 10px ${accentColor}33` : '0 -2px 10px rgba(0,0,0,0.05)';
+            }}
+            onDragLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '';
+            }}
+          >
+            {accentColor && <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: accentColor }}></div>}
+            
+            <div className="bg-surface-2 p-4 border-b border-line flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                {selectable && (
+                  <input 
+                    type="checkbox" 
+                    className="w-4 h-4 rounded cursor-pointer accent-brand" 
+                    checked={allSelected}
+                    onChange={() => onToggleSelectAll(rows)}
+                  />
+                )}
+                <span className="font-display text-lg text-ink">{title}</span>
+              </div>
+              <div className="flex flex-col items-end text-right">
+                <span className="bg-line text-ink text-xs px-2 py-0.5 rounded-full tabular-nums font-bold">{rows.length}</span>
+                <span className="text-[10px] text-ink-faint mt-1 tabular-nums max-w-[200px] break-words">{headerCounts.join(' • ')}</span>
+              </div>
+            </div>
+            
+            <div className="flex-1 p-3 overflow-y-auto space-y-3 hide-scrollbar relative">
+              {rows.length === 0 && (
+                <div className="absolute inset-4 border-2 border-dashed border-line rounded-lg flex items-center justify-center text-center p-4">
+                  <span className="text-sm text-ink-soft">اسحب الطلبات إلى هنا، أو حدّدها ثم انقر للتعيين</span>
+                </div>
+              )}
+{rows.slice(0, visibleCount).map((row, index) => (
+  <RowCard 
+    key={row.id} 
+    row={row} 
+    selectable={selectable} 
+    selected={selectedIds.has(row.id)} 
+    onToggle={onToggleSelect} 
+    onDragStart={onDragStart}
+    zone={zone}
+    onMoveDirect={onMoveDirect}
+    onRetry={onRetry}
+    i={index}
+  />
+))}
+{visibleCount < rows.length && (
+  <div ref={sentinelRef} className="h-4 w-full" />
+)}
+            </div>
+          </div>
+        );
+      });
 function App() {
 
   // Splash fade out
@@ -238,6 +341,8 @@ function App() {
       // Intigo State
       const [intigoApiKey, setIntigoApiKey] = useState(localStorage.getItem('intigoApiKey') || '');
       const [isEnriching, setIsEnriching] = useState(false);
+      const [enrichProgress, setEnrichProgress] = useState(progressStore.get());
+      useEffect(() => progressStore.subscribe(() => setEnrichProgress(progressStore.get())), []);
             const currentUploadId = useRef(0);
       const [scrollPos, setScrollPos] = useState({ top: true, bottom: false });
       
@@ -619,86 +724,7 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
         if (targetZone === 'balkis') setBalkisRows(prev => [row, ...prev]);
       };
 
-      const renderTable = (rows, title, zone, selectable = false, accentColor = '') => {
-        const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
-        const delCount = rows.filter(r=>r.status==='delivered').length;
-        const retCount = rows.filter(r=>r.status==='returned').length;
-        const inProgCount = rows.filter(r=>r.status==='in_progress' || r.status==='return_in_progress').length;
-        const cancelCount = rows.filter(r=>r.status==='cancelled').length;
-        const exchCount = rows.filter(r=>r.status==='exchange').length;
-        
-        let headerCounts = [];
-        if (delCount > 0) headerCounts.push('مسلّم ' + delCount);
-        if (retCount > 0) headerCounts.push('مسترجع ' + retCount);
-        if (inProgCount > 0) headerCounts.push('قيد التنفيذ ' + inProgCount);
-        if (cancelCount > 0) headerCounts.push('ملغي ' + cancelCount);
-        if (exchCount > 0) headerCounts.push('تبادل ' + exchCount);
-        
-        const prepaidCount = rows.filter(r=>r.status==='delivered' && r.totalSales === 0).length;
-        if (prepaidCount > 0) headerCounts.push('مدفوع مسبقاً: ' + prepaidCount);
-
-        return (
-          <div 
-            className="bg-surface rounded-xl shadow-sm border border-line flex flex-col h-full min-h-[400px] relative overflow-hidden transition-transform duration-200"
-            onDrop={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '';
-              handleDrop(e, zone);
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.currentTarget.style.transform = 'translateY(-4px)';
-              e.currentTarget.style.boxShadow = accentColor ? `0 -2px 10px ${accentColor}33` : '0 -2px 10px rgba(0,0,0,0.05)';
-            }}
-            onDragLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '';
-            }}
-          >
-            {accentColor && <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: accentColor }}></div>}
-            
-            <div className="bg-surface-2 p-4 border-b border-line flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                {selectable && (
-                  <input 
-                    type="checkbox" 
-                    className="w-4 h-4 rounded cursor-pointer accent-brand" 
-                    checked={allSelected}
-                    onChange={() => toggleSelectAll(rows)}
-                  />
-                )}
-                <span className="font-display text-lg text-ink">{title}</span>
-              </div>
-              <div className="flex flex-col items-end text-right">
-                <span className="bg-line text-ink text-xs px-2 py-0.5 rounded-full tabular-nums font-bold">{rows.length}</span>
-                <span className="text-[10px] text-ink-faint mt-1 tabular-nums max-w-[200px] break-words">{headerCounts.join(' • ')}</span>
-              </div>
-            </div>
-            
-            <div className="flex-1 p-3 overflow-y-auto space-y-3 hide-scrollbar relative">
-              {rows.length === 0 && (
-                <div className="absolute inset-4 border-2 border-dashed border-line rounded-lg flex items-center justify-center text-center p-4">
-                  <span className="text-sm text-ink-soft">اسحب الطلبات إلى هنا، أو حدّدها ثم انقر للتعيين</span>
-                </div>
-              )}
-{rows.slice(0, visibleCount).map((row) => (
-  <RowCard 
-    key={row.id} 
-    row={row} 
-    selectable={selectable} 
-    selected={selectedIds.has(row.id)} 
-    onToggle={toggleSelect} 
-    onDragStart={handleDragStart} 
-  />
-))}
-{visibleCount < rows.length && (
-  <div ref={sentinelRef} className="h-4 w-full" />
-)}
-            </div>
-          </div>
-        );
-      };
-
+      
       const renderFeeInputs = (fees, setFees, isLocked = false) => (
         <div className="mt-4 bg-surface p-4 rounded-xl shadow-sm border border-line flex flex-col gap-3">
           <h4 className="text-sm font-bold text-ink flex items-center justify-between">
@@ -1003,7 +1029,7 @@ const BrandSummaryCard = ({ title, stats }) => (
             
 
             {(masterRows.length > 0 || cakadoRows.length > 0 || balkisRows.length > 0) && (
-              <>
+              <React.Fragment>
                 {/* Instruments */}
                 <div className="flex flex-col md:flex-row gap-6">
                   <BrandSummaryCard title="كاكادو (CAKADO)" stats={cakadoStats} />
@@ -1012,17 +1038,41 @@ const BrandSummaryCard = ({ title, stats }) => (
 
                 {/* Trays */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="order-1 lg:order-none">{renderTable(viewMaster, 'غير مصنفة', 'master', true, '')}</div>
+                  <div className="order-1 lg:order-none"><ZoneTable 
+  selectedIds={selectedIds}
+  onToggleSelectAll={toggleSelectAll}
+  onDrop={handleDrop}
+  onToggleSelect={toggleSelect}
+  onDragStart={handleDragStart}
+  onMoveDirect={moveSelectedDirectly}
+  onRetry={handleRetryEnrichment}
+  rows={viewMaster} title='غير مصنفة' zone='master' selectable={true} accentColor='' /></div>
                   <div className="order-2 lg:order-none">
-                    {renderTable(viewCakado, 'كاكادو', 'cakado', true, 'var(--brand)')}
+                    <ZoneTable 
+  selectedIds={selectedIds}
+  onToggleSelectAll={toggleSelectAll}
+  onDrop={handleDrop}
+  onToggleSelect={toggleSelect}
+  onDragStart={handleDragStart}
+  onMoveDirect={moveSelectedDirectly}
+  onRetry={handleRetryEnrichment}
+  rows={viewCakado} title='كاكادو' zone='cakado' selectable={true} accentColor='var(--brand)' />
                     {renderFeeInputs(cakadoFees, setCakadoFees, isIntigoLocked)}
                   </div>
                   <div className="order-3 lg:order-none">
-                    {renderTable(viewBalkis, 'بلقيس', 'balkis', true, '#3b82f6')}
+                    <ZoneTable 
+  selectedIds={selectedIds}
+  onToggleSelectAll={toggleSelectAll}
+  onDrop={handleDrop}
+  onToggleSelect={toggleSelect}
+  onDragStart={handleDragStart}
+  onMoveDirect={moveSelectedDirectly}
+  onRetry={handleRetryEnrichment}
+  rows={viewBalkis} title='بلقيس' zone='balkis' selectable={true} accentColor='#3b82f6' />
                     {renderFeeInputs(balkisFees, setBalkisFees, isIntigoLocked)}
                   </div>
                 </div>
-              </>
+              </React.Fragment>
             )}
 
             {/* Floating Selection Bar */}

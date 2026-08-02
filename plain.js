@@ -643,7 +643,7 @@ const productName = typeof _rawName === 'string' ? _rawName.replace(/^\[GENERATE
           }
         }
         
-        if (uploadId === currentUploadId.current) {
+        if (!checkIsCancelled()) {
            setIsEnriching(false);
         }
       }
