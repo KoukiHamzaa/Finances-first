@@ -1,6 +1,8 @@
 
 const { useState, useCallback, useMemo, useRef, useEffect, startTransition } = React;
 
+const supportsHoverDrag = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)').matches : false;
+
 const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart, zone, onMoveDirect, onRetry, i = 0 }) => {
 
                 const govInfo = resolveGov(row.city);
@@ -20,24 +22,33 @@ const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart, 
   return (
     <div
                     key={row.id}
-                    draggable
-                    onDragStart={(e) => onDragStart(e, row.id)}
+                    draggable={supportsHoverDrag}
+                    onDragStart={supportsHoverDrag ? (e) => onDragStart(e, row.id) : undefined}
                     onClick={selectable ? (e) => onToggle(e, row.id) : undefined}
-                    className={`bg-surface border p-3 rounded-xl shadow-sm transition-all duration-200 group relative
-                      ${selectable ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : 'cursor-grab active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-md'} 
+                    className={`bg-surface border p-3 rounded-xl shadow-sm transition-all duration-200 group relative active:scale-[0.99]
+                      ${selectable ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : (supportsHoverDrag ? 'cursor-grab active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-md' : 'cursor-pointer')} 
                       ${selected ? 'border-brand ring-1 ring-brand bg-brand/5' : 'border-line'}
                     `}
-                    style={i < 12 ? { animation: `fadeInUp 0.3s ease-out ${i * 0.03}s both` } : {}}
+                    style={{
+                      ...(i < 12 ? { animation: `fadeInUp 0.3s ease-out ${i * 0.03}s both` } : {}),
+                      touchAction: 'pan-y',
+                      WebkitTapHighlightColor: 'transparent',
+                    }}
                   >
                     <div className="flex items-start gap-3">
                       {selectable && (
-                        <input 
-                           type="checkbox" 
-                           className="w-5 h-5 mt-0.5 rounded cursor-pointer accent-brand"
-                          checked={selected}
-                          onChange={(e) => onToggle(e, row.id)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
+                        <div 
+                          className="flex items-center justify-center -ml-2 -mt-2 p-2 cursor-pointer"
+                          style={{ minWidth: '44px', minHeight: '44px', WebkitTapHighlightColor: 'transparent' }}
+                          onClick={(e) => { e.stopPropagation(); onToggle(e, row.id); }}
+                        >
+                          <input
+                              type="checkbox"
+                              className="w-5 h-5 rounded cursor-pointer accent-brand pointer-events-none"
+                            checked={selected}
+                            readOnly
+                          />
+                        </div>
                       )}
                       <div className="flex-1 min-w-0 flex flex-col gap-2">
                         <div className="flex justify-between items-start gap-2">
@@ -204,12 +215,16 @@ const ZoneTable = React.memo(({ rows, title, zone, selectable = false, accentCol
         }, [visibleCount, rows.length]);
 
         const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
-const delCount = rows.filter(r=>r.status==='delivered').length;
-        const retCount = rows.filter(r=>r.status==='returned').length;
-        const inProgCount = rows.filter(r=>r.status==='in_progress' || r.status==='return_in_progress').length;
-        const cancelCount = rows.filter(r=>r.status==='cancelled').length;
-        const exchCount = rows.filter(r=>r.status==='exchange').length;
-        
+const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } = useMemo(() => {
+          return {
+            delCount: rows.filter(r=>r.status==='delivered').length,
+            retCount: rows.filter(r=>r.status==='returned').length,
+            inProgCount: rows.filter(r=>r.status==='in_progress' || r.status==='return_in_progress').length,
+            cancelCount: rows.filter(r=>r.status==='cancelled').length,
+            exchCount: rows.filter(r=>r.status==='exchange').length,
+            prepaidCount: rows.filter(r=>r.status==='delivered' && r.totalSales === 0).length
+          };
+        }, [rows]);
         let headerCounts = [];
         if (delCount > 0) headerCounts.push('مسلّم ' + delCount);
         if (retCount > 0) headerCounts.push('مسترجع ' + retCount);
@@ -217,7 +232,7 @@ const delCount = rows.filter(r=>r.status==='delivered').length;
         if (cancelCount > 0) headerCounts.push('ملغي ' + cancelCount);
         if (exchCount > 0) headerCounts.push('تبادل ' + exchCount);
         
-        const prepaidCount = rows.filter(r=>r.status==='delivered' && r.totalSales === 0).length;
+        
         if (prepaidCount > 0) headerCounts.push('مدفوع مسبقاً: ' + prepaidCount);
 
         return (
@@ -258,7 +273,7 @@ const delCount = rows.filter(r=>r.status==='delivered').length;
               </div>
             </div>
             
-            <div className="flex-1 p-3 overflow-y-auto space-y-3 hide-scrollbar relative">
+            <div className="flex-1 p-3 overflow-y-auto space-y-3 hide-scrollbar relative" style={{ touchAction: 'pan-y' }}>
               {rows.length === 0 && (
                 <div className="absolute inset-4 border-2 border-dashed border-line rounded-lg flex items-center justify-center text-center p-4">
                   <span className="text-sm text-ink-soft">اسحب الطلبات إلى هنا، أو حدّدها ثم انقر للتعيين</span>
@@ -286,6 +301,8 @@ const delCount = rows.filter(r=>r.status==='delivered').length;
         );
       });
 function App() {
+console.time('App Render');
+useEffect(() => { console.timeEnd('App Render'); });
 
   // Splash fade out
   useEffect(() => {
@@ -350,7 +367,7 @@ function App() {
          const handleScroll = () => {
             const isTop = window.scrollY < 100;
             const isBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100;
-            setScrollPos({ top: isTop, bottom: isBottom });
+            setScrollPos(prev => (prev.top === isTop && prev.bottom === isBottom) ? prev : { top: isTop, bottom: isBottom });
          };
          window.addEventListener('scroll', handleScroll, { passive: true });
          handleScroll();
@@ -667,30 +684,32 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
       const viewCakado = getDerivedView(cakadoRows);
       const viewBalkis = getDerivedView(balkisRows);
 
-      const cakadoStats = calculateStats(cakadoRows, cakadoFees);
-      const balkisStats = calculateStats(balkisRows, balkisFees);
+      const cakadoStats = useMemo(() => calculateStats(cakadoRows, cakadoFees), [cakadoRows, cakadoFees]);
+      const balkisStats = useMemo(() => calculateStats(balkisRows, balkisFees), [balkisRows, balkisFees]);
 
-      const toggleSelectAll = (rowsToToggle) => {
+      const toggleSelectAll = useCallback((rowsToToggle) => {
         const rowIds = rowsToToggle.map(r => r.id);
-        const allSelected = rowIds.length > 0 && rowIds.every(id => selectedIds.has(id));
-        if (allSelected) {
-          const newSet = new Set(selectedIds);
-          rowIds.forEach(id => newSet.delete(id));
-          setSelectedIds(newSet);
-        } else {
-          const newSet = new Set(selectedIds);
-          rowIds.forEach(id => newSet.add(id));
-          setSelectedIds(newSet);
-        }
-      };
+        setSelectedIds(prev => {
+          const allSelected = rowIds.length > 0 && rowIds.every(id => prev.has(id));
+          const newSet = new Set(prev);
+          if (allSelected) {
+            rowIds.forEach(id => newSet.delete(id));
+          } else {
+            rowIds.forEach(id => newSet.add(id));
+          }
+          return newSet;
+        });
+      }, []);
 
-      const toggleSelect = (e, id) => {
-        e.stopPropagation();
-        const newSet = new Set(selectedIds);
-        if (newSet.has(id)) newSet.delete(id);
-        else newSet.add(id);
-        setSelectedIds(newSet);
-      };
+      const toggleSelect = useCallback((e, id) => {
+        if (e && e.stopPropagation) e.stopPropagation();
+        setSelectedIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(id)) newSet.delete(id);
+          else newSet.add(id);
+          return newSet;
+        });
+      }, []);
 
       const moveSelected = (targetZone) => {
         const idsToMove = new Set(selectedIds);
