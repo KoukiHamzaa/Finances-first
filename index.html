@@ -1072,10 +1072,13 @@ const ZoneTable = React.memo(({ rows, title, zone, selectable = false, accentCol
           setVisibleCount(20);
         }, [rows]);
 
+        const countRef = useRef({ visible: visibleCount, total: rows.length });
+        useEffect(() => { countRef.current = { visible: visibleCount, total: rows.length }; }, [visibleCount, rows.length]);
+        
         useEffect(() => {
           const observer = new IntersectionObserver(
             (entries) => {
-              if (entries[0].isIntersecting && visibleCount < rows.length) {
+              if (entries[0].isIntersecting && countRef.current.visible < countRef.current.total) {
                 setVisibleCount((prev) => prev + 20);
               }
             },
@@ -1083,7 +1086,7 @@ const ZoneTable = React.memo(({ rows, title, zone, selectable = false, accentCol
           );
           if (sentinelRef.current) observer.observe(sentinelRef.current);
           return () => observer.disconnect();
-        }, [visibleCount, rows.length]);
+        }, []);
 
         const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
 const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } = useMemo(() => {
@@ -1379,19 +1382,15 @@ useEffect(() => { console.timeEnd('App Render'); });
 
         if (!row) return;
 
-        // Remove from all three simultaneously
-        setMasterRows(prev => prev.filter(r => r.id !== id));
-        setCakadoRows(prev => prev.filter(r => r.id !== id));
-        setBalkisRows(prev => prev.filter(r => r.id !== id));
+        const updateZone = (prev, zoneName) => {
+          const present = prev.some(r => r.id === id);
+          if (zoneName === targetZone) return present ? prev : [...prev, row];
+          return present ? prev.filter(r => r.id !== id) : prev;
+        };
 
-        // Append to the target zone's array
-        if (targetZone === 'master') {
-          setMasterRows(prev => [...prev, row]);
-        } else if (targetZone === 'cakado') {
-          setCakadoRows(prev => [...prev, row]);
-        } else if (targetZone === 'balkis') {
-          setBalkisRows(prev => [...prev, row]);
-        }
+        setMasterRows(prev => updateZone(prev, 'master'));
+        setCakadoRows(prev => updateZone(prev, 'cakado'));
+        setBalkisRows(prev => updateZone(prev, 'balkis'));
       };
 
       const handleDragOver = (e) => {
@@ -1590,34 +1589,35 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
 
       const moveSelected = (targetZone) => {
         const idsToMove = new Set(selectedIds);
+        if (idsToMove.size === 0) return;
         
         // Gather from all first:
         const allRows = [...masterRows, ...cakadoRows, ...balkisRows];
         const movingRows = allRows.filter(r => idsToMove.has(r.id));
         
-        setMasterRows(prev => {
-           const kept = prev.filter(r => !idsToMove.has(r.id));
-           return targetZone === 'master' ? [...kept, ...movingRows] : kept;
-        });
-        setCakadoRows(prev => {
-           const kept = prev.filter(r => !idsToMove.has(r.id));
-           return targetZone === 'cakado' ? [...kept, ...movingRows] : kept;
-        });
-        setBalkisRows(prev => {
-           const kept = prev.filter(r => !idsToMove.has(r.id));
-           return targetZone === 'balkis' ? [...kept, ...movingRows] : kept;
-        });
+        const updateZone = (prev, zoneName) => {
+          const affected = zoneName === targetZone || prev.some(r => idsToMove.has(r.id));
+          if (!affected) return prev;
+          const kept = prev.filter(r => !idsToMove.has(r.id));
+          return zoneName === targetZone ? [...kept, ...movingRows] : kept;
+        };
+
+        setMasterRows(prev => updateZone(prev, 'master'));
+        setCakadoRows(prev => updateZone(prev, 'cakado'));
+        setBalkisRows(prev => updateZone(prev, 'balkis'));
 
         setSelectedIds(new Set());
       };
 
       const moveSelectedDirectly = (row, targetZone) => {
-        setMasterRows(prev => prev.filter(r => r.id !== row.id));
-        setCakadoRows(prev => prev.filter(r => r.id !== row.id));
-        setBalkisRows(prev => prev.filter(r => r.id !== row.id));
-        if (targetZone === 'master') setMasterRows(prev => [row, ...prev]);
-        if (targetZone === 'cakado') setCakadoRows(prev => [row, ...prev]);
-        if (targetZone === 'balkis') setBalkisRows(prev => [row, ...prev]);
+        const setters = { master: setMasterRows, cakado: setCakadoRows, balkis: setBalkisRows };
+        Object.entries(setters).forEach(([zoneName, setRows]) => {
+          setRows(prev => {
+            const present = prev.some(r => r.id === row.id);
+            if (zoneName === targetZone) return present ? prev : [row, ...prev];
+            return present ? prev.filter(r => r.id !== row.id) : prev;
+          });
+        });
       };
 
       
