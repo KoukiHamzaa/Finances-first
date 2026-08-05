@@ -1072,13 +1072,10 @@ const ZoneTable = React.memo(({ rows, title, zone, selectable = false, accentCol
           setVisibleCount(20);
         }, [rows]);
 
-        const countRef = useRef({ visible: visibleCount, total: rows.length });
-        useEffect(() => { countRef.current = { visible: visibleCount, total: rows.length }; }, [visibleCount, rows.length]);
-        
         useEffect(() => {
           const observer = new IntersectionObserver(
             (entries) => {
-              if (entries[0].isIntersecting && countRef.current.visible < countRef.current.total) {
+              if (entries[0].isIntersecting && visibleCount < rows.length) {
                 setVisibleCount((prev) => prev + 20);
               }
             },
@@ -1086,7 +1083,7 @@ const ZoneTable = React.memo(({ rows, title, zone, selectable = false, accentCol
           );
           if (sentinelRef.current) observer.observe(sentinelRef.current);
           return () => observer.disconnect();
-        }, []);
+        }, [visibleCount, rows.length]);
 
         const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
 const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } = useMemo(() => {
