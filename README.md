@@ -1,13 +1,21 @@
-# Intigo Financial Reconciliation Console (v1.0)
+# Intigo Financial Reconciliation Console (v1.1)
 
 A secure, offline-first React SPA for financial reconciliation of e-commerce carrier data. The console parses `.xlsx` and `.csv` files from three Tunisian carriers (CONVERTY, LOGISTA, and INTIGO) to calculate delivery fees, return fees, and calculate net settlements across two distinct brands (Cakado and Balkis). 
 
 ## Architecture
 
-- **Single-File React SPA**: Built as a self-contained `index.html` executing entirely in the browser using Babel-Standalone. No build steps required.
+- **Vite React Architecture**: Refactored from a single-file Babel-Standalone approach to a fully modularized Vite React project for optimal performance and instant load times.
 - **Client-Side Parsing**: Relies on `SheetJS` (`xlsx.full.min.js`) loaded via CDN for rapid client-side file parsing without server involvement.
-- **Styling**: `Tailwind CSS` via CDN, augmented with custom CSS variables providing a toggleable "Console" (dark) and "Light" theme.
+- **Styling**: `Tailwind CSS` v4 with custom CSS variables providing a toggleable "Console" (dark) and "Light" theme.
 - **Security**: The application operates predominantly offline. API keys (for Intigo product enrichment) are supplied at runtime by the user, retained purely in `localStorage`, and interact directly with the Intigo API without proxy servers.
+
+### Directory Structure
+- `index.html`: The clean entry point containing the module call.
+- `src/main.jsx`: The React mount script.
+- `src/App.jsx`: The core application and main UI logic.
+- `src/components.jsx`: Reusable React components (RowCard, ZoneTable, etc).
+- `src/utils.js`: Data parsing, formatting, external API handling, and constants.
+- `src/index.css`: Tailwind v4 configuration and custom CSS variables.
 
 ## Features
 
@@ -19,7 +27,6 @@ A secure, offline-first React SPA for financial reconciliation of e-commerce car
 - **Financial Validation**: Tracks both "Carrier Reported Fees" and "Internal Rule Fees", highlighting discrepancies via automated positive/negative Δ indicators.
 
 ## Operation & Workflow
-
 1. **Ingest**: Drop an exported `.xlsx` file from the carrier onto the drop zone.
 2. **Review Initial Validation**: The application flags unknown governorates, duplicate NIDs, and unrecognized parcel states as dismissible banners for immediate correction.
 3. **Product Enrichment (Intigo only)**: Requires an active Intigo API Key. Parcels undergo iterative fetch requests to attach product descriptions, updating dynamically in the grid.

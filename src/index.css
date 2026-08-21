@@ -1,1 +1,141 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Tajawal", "Sora", sans-serif;
+  --font-mono: "Sora", monospace;
+  --font-display: "Reem Kufi", sans-serif;
+  
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-warn: var(--warn);
+}
+
+@layer utilities {
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+
+    :root {
+      --bg: #ECEFF3;
+      --vignette: radial-gradient(circle at top, rgba(0,0,0,0.03), transparent 60%);
+      --surface: #FFFFFF;
+      --surface-2: #F6F8FA;
+      --ink: #0B1220;
+      --ink-soft: #475063;
+      --ink-faint: #8A93A3;
+      --line: #E2E7EE;
+      --brand: #0F766E;
+      --pos: #059669;
+      --neg: #E11D48;
+      --warn: #D97706;
+      --bg-grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    }
+    
+    [data-theme="console"] {
+      --bg: #0B1118;
+      --vignette: radial-gradient(circle at top, rgba(255,255,255,0.03), transparent 60%);
+      --surface: #121A24;
+      --surface-2: #0E1620;
+      --ink: #E6EDF3;
+      --ink-soft: #9AA7B6;
+      --ink-faint: #6E7A8A;
+      --line: #1E2A37;
+      --brand: #2DD4BF;
+      --pos: #34D399;
+      --neg: #FB7185;
+      --warn: #FBBF24;
+    }
+    
+    body {
+      background-color: var(--bg);
+      color: var(--ink);
+      font-family: 'Tajawal', 'Sora', sans-serif;
+      position: relative;
+      transition: background-color 0.25s ease, color 0.25s ease;
+    }
+    
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-image: var(--bg-grain);
+      opacity: 0.04;
+      pointer-events: none;
+      z-index: -1;
+    }
+    body::after {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0; height: 100vh;
+      background: var(--vignette);
+      pointer-events: none;
+      z-index: -1;
+    }
+    
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--line);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--ink-faint);
+    }
+    
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+    
+    @media (prefers-reduced-motion: reduce) {
+      *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+    
+    /* Sheen animation */
+    @keyframes sweep {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+    .sheen::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+      animation: sweep 6s infinite linear;
+      pointer-events: none;
+    }
+    
+    [data-theme="console"] .surface-highlight {
+      border-top: 1px solid rgba(255,255,255,0.08);
+      box-shadow: none;
+    }
+    .surface-highlight {
+      border-top: 1px solid rgba(255,255,255,0.8);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    }
+  

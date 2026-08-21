@@ -1,13 +1,10 @@
-
-    
-
-    const round3 = (x) => {
+export const round3 = (x) => {
       const n = Math.round((Number(x) || 0) * 1000) / 1000;
       return isNaN(n) ? 0 : n;
     };
-
+export 
     const formatTND = (x) => round3(x).toFixed(3).replace(".", ",");
-
+export 
     const parseMoney = (raw) => {
       if (raw == null) return { value: 0, bad: false };
       let s = String(raw).trim();
@@ -36,9 +33,9 @@
       if (!isFinite(n) || isNaN(n)) return { value: 0, bad: true };
       return { value: round3(n), bad: false };
     };
-
+export 
     const normalizeId = (raw) => String(raw ?? '').trim().replace(/\s+/g,' ').toLowerCase();
-    const normalizeCity = (raw) => {
+export     const normalizeCity = (raw) => {
       if (!raw) return "";
       return String(raw)
         .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
@@ -47,21 +44,21 @@
         .replace(/\s+/g, " ")
         .trim();
     };
-
+export 
     const GOV_ALIASES = {
       "GRAND_TUNIS.TUNIS": ["tunis", "tunez", "tunes", "تونس", "تونس المدينة", "la marsa", "المرسى", "marsa", "carthage", "قرطاج", "le bardo", "باردو", "bardo", "sidi hassine", "el omrane", "ettadhamen", "hrairia", "jebel jelloud", "el kabaria", "sidi el bechir", "bab bhar", "bab souika", "la goulette", "حلق الوادي", "goulette", "kram", "الكرم", "sidi bou said", "سيدي بوسعيد"],
       "GRAND_TUNIS.ARIANA": ["ariana", "أريانة", "aryanah", "arianah", "la soukra", "السوكرة", "soukra", "raoued", "رواد", "روّاد", "kalaat el andalous", "sidi thabet", "mnihla", "المنيهلة", "اريانة المدينة", "ariana ville", "ariana medina"],
       "GRAND_TUNIS.BEN_AROUS": ["ben arous", "بن عروس", "بنعرس", "el mourouj", "المروج", "mourouj", "hammam-lif", "hammam lif", "حمام الانف", "hammam chott", "ezzahra", "rades", "رادس", "megrine", "megarine", "mornag", "fouchana", "mohamedia", "bou mhel el bassatine"],
       "GRAND_TUNIS.MANNOUBA": ["mannouba", "manouba", "la manouba", "منوبة", "المنوبة", "oued ellil", "وادي الليل", "mornaguia", "borj el amri", "douar hicher", "el batan", "tebourba", "طبربة", "jedaida", "الجديدة"]
     };
-
+export 
     const REVERSE_GOV = new Map();
     for (const [id, aliases] of Object.entries(GOV_ALIASES)) {
       for (const alias of aliases) {
         REVERSE_GOV.set(normalizeCity(alias), id);
       }
     }
-
+export 
     const resolveGov = (raw) => {
       const norm = normalizeCity(raw);
       if (!norm) return { canonical: "OTHER", isGrandTunis: false, unknown: false, raw: raw };
@@ -73,7 +70,7 @@
         raw: raw
       };
     };
-
+export 
     const statusBucket = (codeOrLabel) => {
       const s = String(codeOrLabel).trim().toLowerCase();
       if (["5000", "livre", "livré", "delivered", "تم التسليم", "مسلم", "مسلّم"].includes(s)) return "delivered";
@@ -86,7 +83,7 @@
 
 
     // Detect template type
-    function findHeaderAndScore(rows) {
+export function findHeaderAndScore(rows) {
       if (!rows || rows.length === 0) return { template: 'UNKNOWN', headerIdx: 0 };
       
       let bestScore = 0;
@@ -123,11 +120,11 @@
       return { template: bestTemplate, headerIdx: bestIdx };
     }
 
-    function detectTemplate(rows) {
+export function detectTemplate(rows) {
       return findHeaderAndScore(rows).template;
     }
 
-    function parseConverty(rows) {
+export function parseConverty(rows) {
       const { headerIdx } = findHeaderAndScore(rows);
       const header = rows[headerIdx];
       const data = rows.slice(headerIdx + 1);
@@ -196,7 +193,7 @@
       return { rows: parsed, autoFees: null, duplicateNids: [...new Set(duplicateNids)] };
     }
 
-    function parseLogista(rows) {
+export function parseLogista(rows) {
       const { headerIdx: globalHeaderIdx } = findHeaderAndScore(rows);
       
       const findRow = (startIdx, kw1, kw2) => {
@@ -301,7 +298,7 @@
       };
     }
 
-    function parseIntigo(rows) {
+export function parseIntigo(rows) {
       const { headerIdx } = findHeaderAndScore(rows);
       const header = rows[headerIdx];
       const data = rows.slice(headerIdx + 1);
@@ -382,16 +379,16 @@
         
       return { rows: parsed, autoFees: null, isIntigo: true, duplicateNids: [...new Set(duplicateNids)] };
     }
-const APP_VERSION = 'v1.0';
-const CACHE_KEY_PREFIX = 'intigo_nid_';
-const isValidName = (name) => {
+export const APP_VERSION = 'v1.0';
+export const CACHE_KEY_PREFIX = 'intigo_nid_';
+export const isValidName = (name) => {
          if (!name || typeof name !== 'string') return false;
          const t = name.replace(/^\[GENERATED_NAME\]\s*/i, '').trim().toLowerCase();
          if (!t) return false;
          const invalid = ["منتج بدون اسم","منتج غير معروف","بدون اسم","غير معروف","unknown","n/a","na","-","—","colis"];
          return !invalid.includes(t);
       }
-const getCachedName = (nid) => {
+export const getCachedName = (nid) => {
         try {
            const val = localStorage.getItem(CACHE_KEY_PREFIX + nid);
            if (val) {
@@ -404,13 +401,13 @@ const getCachedName = (nid) => {
         } catch (e) {}
         return null;
       }
-const setCachedName = (nid, data) => {
+export const setCachedName = (nid, data) => {
          if (!isValidName(data.description)) return;
          try {
             localStorage.setItem(CACHE_KEY_PREFIX + nid, JSON.stringify({ ...data, fetchedAt: Date.now() }));
          } catch(e) {}
       }
-const calculateStats = (rows, fees) => {
+export const calculateStats = (rows, fees) => {
         let totalSales = 0;
         let totalRuleFeeDelivery = 0;
         let totalRuleFeeReturn = 0;
@@ -472,7 +469,7 @@ const calculateStats = (rows, fees) => {
         };
       }
 
-const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
+export const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
         const { setIsEnriching, setEnrichProgress, setError, setHealthStatus, onBatchResolved, checkIsCancelled } = callbacks;
         setIsEnriching(true);
         progressStore.set({ current: 0, total: 0, errors: 0 });
@@ -648,7 +645,7 @@ const productName = typeof _rawName === 'string' ? _rawName.replace(/^\[GENERATE
         }
       }
 
-const progressStore = {
+export const progressStore = {
   listeners: new Set(),
   state: { current: 0, total: 0, errors: 0 },
   emit() { this.listeners.forEach(l => l()); },
@@ -657,7 +654,7 @@ const progressStore = {
   get() { return this.state; }
 };
 
-async function checkHealth(key, setHealthStatus) {
+export const checkHealth = async (key, setHealthStatus) => {
 
         if (!key) { setHealthStatus('unauthorized'); return; }
         setHealthStatus('checking');
