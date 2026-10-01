@@ -14,7 +14,8 @@ globalThis.localStorage = {
   get length() { return store.size; },
 };
 
-const { enrichIntigoRows, progressStore, setCachedName } = await import('../src/utils.js');
+const { enrichIntigoRows, progressStore, setCachedName, ENRICH_MAX_CONCURRENCY } =
+  await import('../src/utils.js');
 
 const V3 = (nid) => `https://api.intigo.net/api/v3/parcels/${nid}`;
 const LEGACY = (nid) => `https://api.intigo.net/parcels/${nid}`;
@@ -82,6 +83,114 @@ const flatten = (batches) => batches.flat();
 beforeEach(() => {
   store.clear();
   progressStore.set({ current: 0, total: 0, errors: 0 });
+});
+
+describe('enrichIntigoRows concurrency', () => {
+  // Every request takes `delayMs`, so overlapping requests are observable as a
+  // peak above 1 and the wall clock is much shorter than the sequential total.
+  const slowFetch = (delayMs) => {
+    let live = 0;
+    let peak = 0;
+    const impl = async () => {
+      live++;
+      peak = Math.max(peak, live);
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      live--;
+      return okParcel('X');
+    };
+    return { impl, peak: () => peak };
+  };
+
+  test('runs several requests at once instead of one at a time', async () => {
+    const f = slowFetch(20);
+    globalThis.fetch = f.impl;
+    const { ctx } = harness();
+    const rows = 'ABCDEFGHIJ'.split('').map((nid) => row(nid));
+
+    await enrichIntigoRows(rows, 'key', 0, ctx);
+
+    assert.ok(f.peak() > 1, `expected overlapping requests, peak was ${f.peak()}`);
+    assert.equal(
+      f.peak(),
+      ENRICH_MAX_CONCURRENCY,
+      'uses the whole pool, and no more'
+    );
+  });
+
+  test('never exceeds the pool size even when rows are slow', async () => {
+    const f = slowFetch(15);
+    globalThis.fetch = f.impl;
+    const { ctx } = harness();
+    const rows = 'ABCDEFGHIJKLMNOPQRST'.split('').map((nid) => row(nid));
+
+    await enrichIntigoRows(rows, 'key', 0, ctx);
+
+    assert.ok(f.peak() <= ENRICH_MAX_CONCURRENCY, `peak was ${f.peak()}`);
+  });
+
+  test('a 429 storm still resolves every row and is counted', async () => {
+    let served = 0;
+    globalThis.fetch = mockFetch(() => {
+      if (served++ < 3) return res(429, {});
+      return okParcel('X');
+    }).impl;
+    const { ctx, batches } = harness();
+    const rows = 'ABCDEFGH'.split('').map((nid) => row(nid));
+
+    await enrichIntigoRows(rows, 'key', 0, ctx);
+
+    assert.equal(flatten(batches).length, rows.length, 'no row is lost to the backoff');
+    assert.ok(
+      flatten(batches).every((r) => r.enrichState === 'fetched'),
+      'rows that succeed after a 429 still read as fetched'
+    );
+  });
+
+  test('reports every row when the queue length is not a multiple of the batch size', async () => {
+    globalThis.fetch = mockFetch(() => okParcel('X')).impl;
+    const { ctx, batches } = harness();
+    const rows = 'ABCDEFGHIJKLMNO'.split('').map((nid) => row(nid));
+
+    await enrichIntigoRows(rows, 'key', 0, ctx);
+
+    const reported = flatten(batches);
+    assert.equal(reported.length, rows.length);
+    assert.deepEqual(
+      [...new Set(reported.map((r) => r.nid))].sort(),
+      rows.map((r) => r.nid).sort(),
+      'no row is lost or duplicated across batches'
+    );
+    assert.equal(progressStore.get().current, rows.length);
+  });
+
+  test('asks the API once per NID when the same parcel repeats', async () => {
+    const { impl, calls } = mockFetch(() => okParcel('Chemise'));
+    globalThis.fetch = impl;
+    const { ctx, batches } = harness();
+
+    await enrichIntigoRows([row('A'), row('A'), row('A')], 'key', 0, ctx);
+
+    assert.equal(calls.length, 1, 'the duplicated NID is only fetched once');
+    assert.equal(flatten(batches).length, 3, 'but every row still gets an outcome');
+    assert.ok(flatten(batches).every((r) => r.productName === 'Chemise'));
+  });
+
+  test('does not overlap two requests for the same NID', async () => {
+    const live = new Set();
+    let overlapped = false;
+    globalThis.fetch = async (url) => {
+      if (live.has(url)) overlapped = true;
+      live.add(url);
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      live.delete(url);
+      return okParcel('X');
+    };
+    const { ctx } = harness();
+
+    await enrichIntigoRows([row('A'), row('A'), row('B')], 'key', 0, ctx);
+
+    assert.equal(overlapped, false);
+  });
 });
 
 describe('enrichIntigoRows', () => {
@@ -252,20 +361,25 @@ describe('enrichIntigoRows', () => {
 
     await enrichIntigoRows([row('A'), row('B'), row('C')], 'key', 0, ctx);
 
-    assert.equal(calls.length, 1, 'stops issuing requests after the first 401');
+    assert.ok(
+      calls.length <= ENRICH_MAX_CONCURRENCY,
+      `at most one in-flight wave before the run stops, made ${calls.length}`
+    );
     assert.deepEqual(errors, ['مفتاح API غير صالح. يرجى التحقق من الإعدادات.']);
     assert.deepEqual(health, ['unauthorized']);
     assert.deepEqual(enriching, [true, false]);
 
     const done = flatten(batches);
     assert.equal(done.length, 3, 'the pending rows still get an outcome');
-    assert.equal(done[0].productName, 'مفتاح API غير صالح');
-    assert.equal(done[0].hasError, true);
-    assert.deepEqual(
-      done.slice(1).map((r) => r.productName),
-      ['توقف بسبب خطأ في المفتاح', 'توقف بسبب خطأ في المفتاح']
+    const rejected = done.filter((r) => r.productName === 'مفتاح API غير صالح');
+    const haltedEarly = done.filter((r) => r.productName === 'توقف بسبب خطأ في المفتاح');
+    assert.ok(rejected.length >= 1, 'the row that got the 401 says so');
+    assert.ok(
+      rejected.length <= ENRICH_MAX_CONCURRENCY,
+      `only the in-flight wave can be told apart, got ${rejected.length}`
     );
-    assert.ok(done.slice(1).every((r) => r.enrichState === 'error' && r.needsEnrichment === true));
+    assert.equal(rejected.length + haltedEarly.length, 3, 'every row is accounted for');
+    assert.ok(done.every((r) => r.enrichState === 'error' && r.needsEnrichment === true));
   });
 
   test('retries a 429 up to three times then gives up', async () => {
@@ -330,10 +444,8 @@ describe('enrichIntigoRows', () => {
     );
 
     assert.deepEqual(calls.map((c) => c.url), [V3('B')], 'only the pending row is requested');
-    // KNOWN GAP: the batch is only flushed at 10 rows or when the counter reaches
-    // the *list* length, so a lone pending row inside a longer list is resolved
-    // but never reported to the UI.
-    assert.deepEqual(flatten(batches).map((r) => r.nid), []);
+    // The lone pending row is now reported instead of being resolved and dropped.
+    assert.deepEqual(flatten(batches).map((r) => r.nid), ['B']);
   });
 
   test('caches only names it managed to read', async () => {
@@ -360,11 +472,15 @@ describe('enrichIntigoRows', () => {
     globalThis.fetch = impl;
     const { ctx } = harness({ checkIsCancelled: () => cancelled });
 
-    const promise = enrichIntigoRows([row('A'), row('B'), row('C'), row('D')], 'key', 0, ctx);
+    const many = 'ABCDEFGHIJKLMN'.split('').map((nid) => row(nid));
+    const promise = enrichIntigoRows(many, 'key', 0, ctx);
     setTimeout(() => { cancelled = true; }, 5);
     await promise;
 
-    assert.ok(calls.length < 4, `expected fewer than 4 requests, made ${calls.length}`);
+    assert.ok(
+      calls.length < many.length,
+      `expected the pool to stop short of the queue, made ${calls.length} of ${many.length}`
+    );
   });
 
   test('does not clear the spinner once cancelled', async () => {

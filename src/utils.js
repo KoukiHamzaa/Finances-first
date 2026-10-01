@@ -409,14 +409,14 @@ export const getCachedName = (nid) => {
                  else localStorage.removeItem(CACHE_KEY_PREFIX + nid);
               }
            }
-        } catch (e) {}
+        } catch (_e) {}
         return null;
       }
 export const setCachedName = (nid, data) => {
          if (!isValidName(data.description)) return;
          try {
             localStorage.setItem(CACHE_KEY_PREFIX + nid, JSON.stringify({ ...data, fetchedAt: Date.now() }));
-         } catch(e) {}
+         } catch (_e) {}
       }
 export const calculateStats = (rows, fees) => {
         let totalSales = 0;
@@ -480,172 +480,288 @@ export const calculateStats = (rows, fees) => {
         };
       }
 
+// Concurrency and pacing for the Intigo enrichment loop.
+// ENRICH_MAX_CONCURRENCY is the knob to lower if the API starts rate-limiting:
+// a 429 or 5xx halves the pool down to ENRICH_MIN_CONCURRENCY, and the pool only
+// grows again when a new run starts.
+export const ENRICH_MAX_CONCURRENCY = 4;
+const ENRICH_MIN_CONCURRENCY = 1;
+const ENRICH_MIN_DELAY = 30;
+const ENRICH_MAX_DELAY = 2000;
+const ENRICH_BATCH_SIZE = 10;
+const ENRICH_MAX_ATTEMPTS = 3;
+// The v3 endpoint 404s for some parcels; the undocumented /parcels path still
+// answers for them. Set to false to stop paying the extra request.
+const ENRICH_USE_LEGACY_FALLBACK = true;
+
+const INTIGO_V3 = 'https://api.intigo.net/api/v3/parcels/';
+const INTIGO_LEGACY = 'https://api.intigo.net/parcels/';
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const stripGeneratedTag = (value) =>
+  typeof value === 'string' ? value.replace(/^\[GENERATED_NAME]\s*/i, '') : null;
+
+const firstValidName = (data) => {
+  for (const key of ['description', 'product_name', 'name', 'content', 'item_name']) {
+    if (isValidName(data[key])) return data[key];
+  }
+  return '';
+};
+
+// One request per NID, no matter how many rows in the upload share it.
+const inflight = new Map();
+
 export const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
-        const { setIsEnriching, setEnrichProgress, setError, setHealthStatus, onBatchResolved, checkIsCancelled } = callbacks;
-        setIsEnriching(true);
-        progressStore.set({ current: 0, total: 0, errors: 0 });
-        
-        let current = 0;
-        let errors = 0;
-        let updatedRowsPart = [];
-        let throttleDelay = 30;
+  const { setIsEnriching, setError, setHealthStatus, onBatchResolved, checkIsCancelled } = callbacks;
+  setIsEnriching(true);
+  progressStore.set({ current: 0, total: 0, errors: 0 });
 
-        for (let i = 0; i < rowsToEnrich.length; i++) {
-          if (checkIsCancelled()) break;
-          
-          const row = { ...rowsToEnrich[i] };
-          if (!row.needsEnrichment) continue;
-          
-          let success = false;
-          let name = 'منتج غير معروف';
-          let phoneToSet = '';
-          
-          if (!success) {
-              const cached = getCachedName(row.nid);
-              if (cached) {
-                 name = cached.description;
-                 phoneToSet = cached.phone || '';
-                 success = true;
-              }
-          }
-          
-          if (!success) {
-              await new Promise(r => setTimeout(r, throttleDelay));
-              
-              let retries = 3;
-              while (retries > 0 && !success) {
-                if (checkIsCancelled()) break;
-                try {
-                  const res = await fetch(`https://api.intigo.net/api/v3/parcels/${encodeURIComponent(row.nid)}`, {
-                    headers: { 'X-API-Key': apiKey }
-                  });
-                  
-                  if (res.status === 401) {
-                    setError('مفتاح API غير صالح. يرجى التحقق من الإعدادات.');
-                    setHealthStatus('unauthorized');
-                    row.enrichState = 'error';
-                    name = 'مفتاح API غير صالح';
-                    row.hasError = true;
-                    row.needsEnrichment = true;
-                    row.productName = name;
-                    
-                    const batch = [...updatedRowsPart, row];
-                    
-                    // also mark any remaining rows in rowsToEnrich as error
-                    for (let j = i + 1; j < rowsToEnrich.length; j++) {
-                       const rem = { ...rowsToEnrich[j], enrichState: 'error', hasError: true, needsEnrichment: true, productName: 'توقف بسبب خطأ في المفتاح' };
-                       batch.push(rem);
-                    }
+  const total = rowsToEnrich.length;
+  const queue = rowsToEnrich.filter((r) => r.needsEnrichment);
 
-                    onBatchResolved(batch);
-                    progressStore.set({ current, total: rowsToEnrich.length, errors });
-                    setIsEnriching(false);
-                    return;
-                  }
-                  if (res.status === 429 || res.status >= 500) {
-                     throttleDelay = Math.min(throttleDelay * 2, 2000);
-                     throw new Error(`Rate ${res.status}`);
-                  }
-                  
-                  if (res.status === 404) {
-                     const fallbackRes = await fetch(`https://api.intigo.net/parcels/${encodeURIComponent(row.nid)}`, {
-                        headers: { 'X-API-Key': apiKey }
-                     });
-                     if (fallbackRes.ok) {
-                        // Successfully fetched with fallback
-                        const data = await fallbackRes.json();
-                        let fn = isValidName(data.description) ? data.description :
-                                 isValidName(data.product_name) ? data.product_name :
-                                 isValidName(data.name) ? data.name :
-                                 isValidName(data.content) ? data.content :
-                                 isValidName(data.item_name) ? data.item_name : '';
-                        
-                        if (fn) {
-                           name = typeof fn === 'string' ? fn.replace(/^\[GENERATED_NAME\]\s*/i, '') : fn;
-                           row.enrichState = 'done';
-                        } else {
-                           name = 'بدون اسم (فارغ)';
-                           row.enrichState = 'done';
-                        }
-                        // Update phone if missing
-                        if (!row.phone || row.phone.trim() === '') {
-                           row.phone = data.phone || data.receiver_phone || data.customer_phone || row.phone;
-                        }
-                        success = true;
-                        break;
-                     } else {
-                        row.enrichState = 'error';
-                        name = 'لم يتم العثور عليه';
-                        row.hasError = true;
-                        success = true;
-                        break;
-                     }
-                  } else if (res.ok) {
-                    const jsonData = await res.json();
-                    const parcelData = jsonData.data || jsonData.parcel || jsonData.result || jsonData;
-                    const _rawName = parcelData.description || parcelData.product_name || parcelData.name || parcelData.content || parcelData.item_name || '';
-const productName = typeof _rawName === 'string' ? _rawName.replace(/^\[GENERATED_NAME\]\s*/i, '') : null;
-const fetchedPhone = parcelData.client_phone || parcelData.customer_phone || parcelData.phone || parcelData.receiver_phone || parcelData.telephone || '';
+  let current = 0;
+  let errors = 0;
+  let pending = [];
+  let halted = false;
+  let haltReported = false;
+  let haltIndex = Number.MAX_SAFE_INTEGER;
+  const settled = new Set();
+  let nextIndex = 0;
+  let inFlight = 0;
+  let activeLimit = ENRICH_MAX_CONCURRENCY;
+  let throttleDelay = ENRICH_MIN_DELAY;
 
-                     if (isValidName(productName)) {
-                       name = productName.trim();
-                       phoneToSet = fetchedPhone;
-                       success = true;
-                       row.enrichState = 'fetched';
-                       setCachedName(row.nid, { description: name, phone: fetchedPhone });
-                    } else {
-                       row.enrichState = 'error';
-                       name = 'خطأ في الجلب';
-                       success = false;
-                       errors++;
-                    }
-                    throttleDelay = Math.max(30, throttleDelay * 0.9);
-                    break;
-                  } else {
-                    throw new Error(`Status ${res.status}`);
-                  }
-                } catch (err) {
-                  retries--;
-                  if (retries === 0) {
-                    errors++;
-                    row.enrichState = 'error';
-                    name = 'خطأ في الجلب';
-                  } else {
-                    await new Promise(r => setTimeout(r, Math.max(500, throttleDelay)));
-                  }
-                }
-              }
-          }
-          
-          if (success && !row.enrichState) {
-             row.enrichState = 'fetched';
-          }
-          if (!success && !row.enrichState) {
-             row.enrichState = 'error';
-          }
-          
-          row.hasError = row.enrichState === 'error';
-          row.needsEnrichment = row.enrichState === 'error' || row.enrichState === 'not_found';
-          row.productName = name;
-          if (!row.phone && phoneToSet) row.phone = phoneToSet;
-          
-          updatedRowsPart.push(row);
-          current++;
-          
-          if (updatedRowsPart.length >= 10 || current === rowsToEnrich.length) {
-            const batch = [...updatedRowsPart];
-            
-            onBatchResolved(batch);
-            
-            updatedRowsPart = [];
-            progressStore.set({ current, total: rowsToEnrich.length, errors });
-          }
+  const emit = (row) => {
+    current++;
+    pending.push(row);
+    if (pending.length >= ENRICH_BATCH_SIZE) {
+      onBatchResolved(pending);
+      pending = [];
+      progressStore.set({ current, total, errors });
+    }
+  };
+
+  const backOff = () => {
+    throttleDelay = Math.min(throttleDelay * 2, ENRICH_MAX_DELAY);
+    activeLimit = Math.max(ENRICH_MIN_CONCURRENCY, Math.floor(activeLimit / 2));
+  };
+
+  const relax = () => {
+    throttleDelay = Math.max(ENRICH_MIN_DELAY, throttleDelay * 0.9);
+  };
+
+  // Talks to the API once and reports what came back, without knowing anything
+  // about the row that asked for it. That is what makes it safe to share.
+  const requestParcel = async (nid) => {
+    let attempts = ENRICH_MAX_ATTEMPTS;
+
+    while (attempts > 0) {
+      await sleep(throttleDelay);
+
+      try {
+        const res = await fetch(INTIGO_V3 + encodeURIComponent(nid), {
+          headers: { 'X-API-Key': apiKey }
+        });
+
+        if (res.status === 401) return { kind: 'unauthorized' };
+
+        if (res.status === 429 || res.status >= 500) {
+          backOff();
+          attempts--;
+          if (attempts > 0) await sleep(Math.max(500, throttleDelay));
+          continue;
         }
-        
-        if (!checkIsCancelled()) {
-           setIsEnriching(false);
+
+        if (res.status === 404) {
+          if (!ENRICH_USE_LEGACY_FALLBACK) return { kind: 'notfound' };
+
+          const fallbackRes = await fetch(INTIGO_LEGACY + encodeURIComponent(nid), {
+            headers: { 'X-API-Key': apiKey }
+          });
+          if (!fallbackRes.ok) return { kind: 'notfound' };
+
+          const data = await fallbackRes.json();
+          const found = firstValidName(data);
+          if (!found) return { kind: 'empty', via: 'fallback' };
+          return {
+            kind: 'ok',
+            via: 'fallback',
+            name: stripGeneratedTag(found) ?? found,
+            phone: data.phone || data.receiver_phone || data.customer_phone || '',
+          };
         }
+
+        if (res.ok) {
+          const jsonData = await res.json();
+          const parcelData = jsonData.data || jsonData.parcel || jsonData.result || jsonData;
+          const productName = stripGeneratedTag(
+            parcelData.description || parcelData.product_name || parcelData.name ||
+            parcelData.content || parcelData.item_name || ''
+          );
+          const fetchedPhone = parcelData.client_phone || parcelData.customer_phone ||
+            parcelData.phone || parcelData.receiver_phone || parcelData.telephone || '';
+
+          if (!isValidName(productName)) {
+            relax();
+            return { kind: 'invalid' };
+          }
+          const name = productName.trim();
+          setCachedName(nid, { description: name, phone: fetchedPhone });
+          relax();
+          return { kind: 'ok', via: 'v3', name, phone: fetchedPhone };
+        }
+
+        // Any other non-2xx, non-429 status is treated as retryable.
+        attempts--;
+        if (attempts > 0) await sleep(Math.max(500, throttleDelay));
+      } catch (_err) {
+        attempts--;
+        if (attempts > 0) await sleep(Math.max(500, throttleDelay));
       }
+    }
+
+    return { kind: 'failed' };
+  };
+
+  const fetchParcel = (nid) => {
+    const existing = inflight.get(nid);
+    if (existing) return existing;
+    const promise = requestParcel(nid).finally(() => inflight.delete(nid));
+    inflight.set(nid, promise);
+    return promise;
+  };
+
+  const failRow = (row, productName) => {
+    row.enrichState = 'error';
+    row.hasError = true;
+    row.needsEnrichment = true;
+    row.productName = productName;
+    errors++;
+    return row;
+  };
+
+  // Turns one row's API outcome into the row the UI renders.
+  const resolveRow = async (row) => {
+    const cached = getCachedName(row.nid);
+    if (cached) {
+      row.enrichState = 'fetched';
+      row.hasError = false;
+      row.needsEnrichment = false;
+      row.productName = cached.description;
+      if (!row.phone && cached.phone) row.phone = cached.phone;
+      return row;
+    }
+
+    const result = await fetchParcel(row.nid);
+    if (result.kind === 'unauthorized') return 'halted';
+
+    if (result.kind === 'ok') {
+      row.enrichState = result.via === 'fallback' ? 'done' : 'fetched';
+      row.hasError = false;
+      row.needsEnrichment = false;
+      row.productName = result.name;
+      if (!row.phone || row.phone.trim() === '') row.phone = result.phone || row.phone;
+      return row;
+    }
+
+    if (result.kind === 'empty') {
+      row.enrichState = 'done';
+      row.hasError = false;
+      row.needsEnrichment = false;
+      row.productName = 'بدون اسم (فارغ)';
+      return row;
+    }
+
+    if (result.kind === 'notfound') {
+      row.enrichState = 'error';
+      row.hasError = true;
+      row.needsEnrichment = true;
+      row.productName = 'لم يتم العثور عليه';
+      return row;
+    }
+
+    return failRow(row, result.kind === 'invalid' ? 'خطأ في الجلب' : 'خطأ في الجلب');
+  };
+
+  const worker = async () => {
+    while (!halted) {
+      while (inFlight >= activeLimit && !halted) await sleep(10);
+      if (halted) return;
+
+      const index = nextIndex++;
+      if (index >= queue.length) return;
+      if (checkIsCancelled()) return;
+
+      const row = { ...queue[index] };
+      inFlight++;
+      let outcome;
+      try {
+        outcome = await resolveRow(row);
+      } finally {
+        inFlight--;
+      }
+
+      settled.add(index);
+
+      // Several workers can be in flight when the key is rejected. Only the
+      // first one reports it; the rest settle their own row normally.
+      if (outcome === 'halted') {
+        halted = true;
+        haltIndex = Math.min(haltIndex, index);
+        if (!haltReported) {
+          haltReported = true;
+          setError('مفتاح API غير صالح. يرجى التحقق من الإعدادات.');
+          setHealthStatus('unauthorized');
+        }
+        emit({
+          ...row,
+          enrichState: 'error',
+          hasError: true,
+          needsEnrichment: true,
+          productName: 'مفتاح API غير صالح',
+        });
+        continue;
+      }
+
+      emit(outcome);
+    }
+  };
+
+  await Promise.all(Array.from({ length: ENRICH_MAX_CONCURRENCY }, worker));
+
+  if (halted) {
+    // Rows that never got a turn failed for the same reason.
+    const finalBatch = [
+      ...pending,
+      ...queue
+        .slice(haltIndex)
+        .map((source, offset) => (settled.has(haltIndex + offset) ? null : {
+          ...source,
+          enrichState: 'error',
+          hasError: true,
+          needsEnrichment: true,
+          productName: 'توقف بسبب خطأ في المفتاح',
+        }))
+        .filter(Boolean),
+    ];
+    pending = [];
+    onBatchResolved(finalBatch);
+    progressStore.set({ current, total, errors });
+  } else if (pending.length > 0) {
+    // The old loop only flushed at 10 rows or when its counter reached the list
+    // length, so a short tail was resolved but never reported to the UI.
+    onBatchResolved(pending);
+    pending = [];
+    progressStore.set({ current, total, errors });
+  }
+
+  if (!checkIsCancelled()) {
+    setIsEnriching(false);
+  }
+}
+
+
 
 export const progressStore = {
   listeners: new Set(),
@@ -682,7 +798,7 @@ export const checkHealth = async (key, setHealthStatus) => {
               }
            }
            setHealthStatus('offline');
-        } catch (e) {
+        } catch (_e) {
            setHealthStatus('offline');
         }
       

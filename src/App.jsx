@@ -143,6 +143,8 @@ export default function App() {
 
       // Intigo State
       const [intigoApiKey, setIntigoApiKey] = useState(localStorage.getItem('intigoApiKey') || '');
+      const apiKeyRef = useRef(intigoApiKey);
+      useEffect(() => { apiKeyRef.current = intigoApiKey; }, [intigoApiKey]);
       const [isEnriching, setIsEnriching] = useState(false);
       const [enrichProgress, setEnrichProgress] = useState(progressStore.get());
       useEffect(() => progressStore.subscribe(() => setEnrichProgress(progressStore.get())), []);
@@ -152,17 +154,21 @@ export default function App() {
       useEffect(() => {
          const handleScroll = () => {
             const isTop = window.scrollY < 100;
-            const isBottom = (window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100;
+            const isBottom = (window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 100;
             setScrollPos(prev => (prev.top === isTop && prev.bottom === isBottom) ? prev : { top: isTop, bottom: isBottom });
          };
          window.addEventListener('scroll', handleScroll, { passive: true });
          handleScroll();
-         // observe DOM changes to update bottom detection
-         const observer = new MutationObserver(handleScroll);
-         observer.observe(document.body, { childList: true, subtree: true });
+
+         // A ResizeObserver on the document covers the case the MutationObserver
+         // was there for: the page growing as cards page in. Observing body with
+         // {subtree:true} fired on every enrichment batch and forced a
+         // synchronous layout each time.
+         const resize = new ResizeObserver(handleScroll);
+         resize.observe(document.documentElement);
          return () => {
             window.removeEventListener('scroll', handleScroll);
-            observer.disconnect();
+            resize.disconnect();
          };
       }, []);
       
@@ -181,16 +187,41 @@ export default function App() {
       
       
       
+      // Below this length a key cannot be complete, so there is no point asking the
+// API about it. Intigo keys are opaque strings; this only suppresses health
+// checks while the user is still typing.
+const MIN_KEY_LENGTH = 16;
+const API_KEY_COMMIT_DELAY = 800;
+
+      // Writing to localStorage and probing the health endpoint on every
+      // keystroke meant a storage write per character and a request fired with
+      // a half-typed key. Persist on a debounce (and immediately on blur), and
+      // only probe a plausibly complete key.
+      const commitApiKey = useCallback(() => {
+        try { localStorage.setItem('intigoApiKey', apiKeyRef.current); } catch (_) {}
+      }, []);
+
       useEffect(() => {
-         const t = setTimeout(() => { 
+        const t = setTimeout(commitApiKey, API_KEY_COMMIT_DELAY);
+        return () => clearTimeout(t);
+      }, [intigoApiKey, commitApiKey]);
+
+      useEffect(() => {
+         const key = intigoApiKey.trim();
+         if (!key || key.length < MIN_KEY_LENGTH) return;
+
+         const t = setTimeout(() => {
             if ('requestIdleCallback' in window) {
-                window.requestIdleCallback(() => checkHealth(intigoApiKey, setHealthStatus));
+                window.requestIdleCallback(() => checkHealth(key, setHealthStatus));
             } else {
-                checkHealth(intigoApiKey, setHealthStatus);
+                checkHealth(key, setHealthStatus);
             }
-         }, 500);
+         }, API_KEY_COMMIT_DELAY);
          return () => clearTimeout(t);
       }, [intigoApiKey]);
+
+      // With no key at all the dot reads "invalid" without needing an effect.
+      const effectiveHealthStatus = intigoApiKey.trim() ? healthStatus : 'unauthorized';
 
       const resetSession = useCallback(() => {
         currentUploadId.current += 1;
@@ -225,9 +256,6 @@ export default function App() {
         for (const r of balkisRows) byId.set(r.id, r);
         rowsByIdRef.current = byId;
       }, [masterRows, cakadoRows, balkisRows]);
-
-      const apiKeyRef = useRef(intigoApiKey);
-      useEffect(() => { apiKeyRef.current = intigoApiKey; }, [intigoApiKey]);
 
       const activeCarrierRef = useRef(activeCarrier);
       useEffect(() => { activeCarrierRef.current = activeCarrier; }, [activeCarrier]);
@@ -577,10 +605,10 @@ export default function App() {
                       <input
                         type="password"
                         value={intigoApiKey}
-                        onChange={(e) => {
-                          setIntigoApiKey(e.target.value);
-                          localStorage.setItem('intigoApiKey', e.target.value);
-                        }}
+                        onChange={(e) => setIntigoApiKey(e.target.value)}
+                        onBlur={commitApiKey}
+                        autoComplete="off"
+                        spellCheck="false"
                         placeholder="ألصق مفتاح Intigo API هنا"
                         className="bg-transparent border-none outline-none text-xs w-full text-ink font-mono tracking-widest"
                         dir="ltr"
@@ -591,7 +619,7 @@ export default function App() {
                   {/* Row C: Controls */}
                   <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 w-full md:w-auto">
                     <button onClick={handleClearCache} className="shrink-0 flex items-center gap-1.5 px-4 min-h-[44px] bg-transparent border border-line text-ink-soft hover:text-brand hover:border-brand transition-colors rounded-full text-xs font-bold" aria-label="مسح ذاكرة المنتجات" title="مسح ذاكرة المنتجات وتحديث الأسماء">مسح ذاكرة المنتجات</button>
-                    <span className={`shrink-0 w-2.5 h-2.5 rounded-full mx-1 ${healthStatus === 'connected' ? 'bg-pos' : (healthStatus === 'offline' || healthStatus === 'endpoint_unknown') ? 'bg-warn animate-pulse' : healthStatus === 'checking' ? 'bg-brand animate-pulse' : 'bg-neg'}`} title={healthStatus === 'connected' ? 'متصل' : healthStatus === 'offline' ? 'غير متصل' : healthStatus === 'endpoint_unknown' ? 'تعذّر التحقق من الصحة — سيتم التأكد عند أول طلب' : healthStatus === 'checking' ? 'جاري التحقق...' : 'مفتاح API غير صالح'}></span>
+                    <span className={`shrink-0 w-2.5 h-2.5 rounded-full mx-1 ${effectiveHealthStatus === 'connected' ? 'bg-pos' : (effectiveHealthStatus === 'offline' || effectiveHealthStatus === 'endpoint_unknown') ? 'bg-warn animate-pulse' : effectiveHealthStatus === 'checking' ? 'bg-brand animate-pulse' : 'bg-neg'}`} title={effectiveHealthStatus === 'connected' ? 'متصل' : effectiveHealthStatus === 'offline' ? 'غير متصل' : effectiveHealthStatus === 'endpoint_unknown' ? 'تعذّر التحقق من الصحة — سيتم التأكد عند أول طلب' : effectiveHealthStatus === 'checking' ? 'جاري التحقق...' : 'مفتاح API غير صالح'}></span>
 
                     <button
                       type="button"
