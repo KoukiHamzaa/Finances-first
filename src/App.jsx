@@ -26,6 +26,7 @@ useEffect(() => { console.timeEnd('App Render'); });
       const [selectedIds, setSelectedIds] = useState(new Set());
       const [error, setError] = useState(null);
       const [autoFeesInfo, setAutoFeesInfo] = useState(null);
+      const [isReadingFile, setIsReadingFile] = useState(false);
 
       // Presentational Derived View States
       const [searchQuery, setSearchQuery] = useState('');
@@ -251,8 +252,10 @@ useEffect(() => { console.timeEnd('App Render'); });
 
       const handleFileUpload = useCallback((file) => {
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
+          setIsReadingFile(true);
           try {
+            const XLSX = await import('xlsx');
             const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
@@ -323,10 +326,12 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
             }
           } catch (err) {
             setError('خطأ: ' + err.message);
+          } finally {
+            setIsReadingFile(false);
           }
         };
         reader.readAsArrayBuffer(file);
-      }, [intigoApiKey]);
+      }, [intigoApiKey, resetSession]);
 
       const onFileInputChange = useCallback((e) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -670,15 +675,24 @@ const BrandSummaryCard = ({ title, stats }) => (
             {/* Upload Zone */}
             {(!masterRows.length && !cakadoRows.length && !balkisRows.length) && (
               <label 
-                className="border-2 border-dashed border-line bg-surface hover:bg-surface-2 transition-colors rounded-xl p-12 flex flex-col items-center justify-center cursor-pointer text-center group"
+                className={`border-2 border-dashed border-line bg-surface transition-colors rounded-xl p-12 flex flex-col items-center justify-center text-center group ${isReadingFile ? 'opacity-60 pointer-events-none' : 'hover:bg-surface-2 cursor-pointer'}`}
                 onDrop={onDropFile}
                 onDragOver={handleDragOver}
               >
                 <div className="w-16 h-16 bg-surface-2 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <svg className="w-8 h-8 text-brand" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                 </div>
-                <span className="font-display text-xl text-ink mb-2">اسحب الطلبات إلى هنا</span>
-                <span className="text-sm text-ink-soft">أو انقر لاختيار ملف (.xlsx, .csv)</span>
+                {isReadingFile ? (
+                  <>
+                    <span className="font-display text-xl text-ink mb-2" role="status">جارٍ قراءة الملف...</span>
+                    <span className="text-sm text-ink-soft">لحظات من فضلك</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-display text-xl text-ink mb-2">اسحب الطلبات إلى هنا</span>
+                    <span className="text-sm text-ink-soft">أو انقر لاختيار ملف (.xlsx, .csv)</span>
+                  </>
+                )}
                 <span className="text-xs text-ink-faint mt-4 bg-surface-2 px-3 py-1.5 rounded-full">الحالات محدّثة حتى تاريخ تصدير الملف — أعد رفع الملف لتحديثها.</span>
                 <input type="file" accept=".xlsx,.csv" className="hidden" onChange={onFileInputChange} />
               </label>

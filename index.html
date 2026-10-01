@@ -13,10 +13,11 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@700&family=Sora:wght@400;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
-  
-  <!-- External Dependencies -->
-  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@700&family=Sora:wght@400;700;800&family=Tajawal:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@700&family=Sora:wght@400;700;800&family=Tajawal:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@700&family=Sora:wght@400;700;800&family=Tajawal:wght@400;500;700&display=swap">
+  </noscript>
 </head>
 <body class="bg-bg text-ink font-sans antialiased selection:bg-brand/20 selection:text-brand" dir="rtl">
   <div id="root"></div>
