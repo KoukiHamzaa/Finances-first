@@ -169,7 +169,7 @@ export const AnimatedNumber = React.memo(({ value }) => {
   const previousValueRef = useRef(value);
 
   useEffect(() => {
-    if (value === displayValue) return;
+    if (value === previousValueRef.current) return;
     
     const animate = time => {
       if (!startTimeRef.current) startTimeRef.current = time;
@@ -194,28 +194,51 @@ export const AnimatedNumber = React.memo(({ value }) => {
   return <React.Fragment>{formatTND(displayValue)}</React.Fragment>;
 });
 
+const PAGE_SIZE = 20;
+
 export const ZoneTable = React.memo(({ rows, title, zone, selectable = false, accentColor = '', selectedIds, onToggleSelectAll, onDrop, onToggleSelect, onDragStart, onMoveDirect, onRetry }) => {
-        const [visibleCount, setVisibleCount] = useState(20);
+        const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+        // The set of rows changes identity on every enrichment batch, so paging
+        // is reset on the row *ids* instead: that catches a new file, a search,
+        // a filter, a sort or a move, but not a name arriving from the API.
+        const idSignature = useMemo(() => rows.map((r) => r.id).join('\u0000'), [rows]);
+        const [lastSignature, setLastSignature] = useState(idSignature);
+        if (lastSignature !== idSignature) {
+          setLastSignature(idSignature);
+          setVisibleCount(PAGE_SIZE);
+        }
+
+        const observerRef = useRef(null);
         const sentinelRef = useRef(null);
-
-        useEffect(() => {
-          setVisibleCount(20);
-        }, [rows]);
-
         const countRef = useRef({ visible: visibleCount, total: rows.length });
         useEffect(() => { countRef.current = { visible: visibleCount, total: rows.length }; }, [visibleCount, rows.length]);
-        
+
+        // A callback ref, because the sentinel mounts and unmounts as the list
+        // fills and empties. An effect with [] deps would only ever see the
+        // first node, so paging would stop working after the first unmount.
+        const setSentinel = useCallback((node) => {
+          const observer = observerRef.current;
+          if (observer) observer.unobserve(sentinelRef.current);
+          sentinelRef.current = node;
+          if (observer && node) observer.observe(node);
+        }, []);
+
         useEffect(() => {
           const observer = new IntersectionObserver(
             (entries) => {
               if (entries[0].isIntersecting && countRef.current.visible < countRef.current.total) {
-                setVisibleCount((prev) => prev + 20);
+                setVisibleCount((prev) => prev + PAGE_SIZE);
               }
             },
             { rootMargin: '200px' }
           );
+          observerRef.current = observer;
           if (sentinelRef.current) observer.observe(sentinelRef.current);
-          return () => observer.disconnect();
+          return () => {
+            observer.disconnect();
+            observerRef.current = null;
+          };
         }, []);
 
         const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
@@ -304,7 +327,7 @@ const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } 
   />
 ))}
 {visibleCount < rows.length && (
-  <div ref={sentinelRef} className="h-4 w-full" />
+  <div ref={setSentinel} className="h-4 w-full" />
 )}
             </div>
           </div>

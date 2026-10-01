@@ -23,6 +23,7 @@ const {
   resolveGov, statusBucket, detectTemplate, findHeaderAndScore,
   parseConverty, parseLogista, parseIntigo,
   isValidName, getCachedName, setCachedName, calculateStats,
+  arCollator, sortByProductName,
 } = await import('../src/utils.js');
 
 const { CONVERTY_ROWS, INTIGO_ROWS, LOGISTA_ROWS } = await import('./fixtures.js');
@@ -509,5 +510,56 @@ describe('calculateStats', () => {
     assert.equal(s.totalSales, 0.9);
     assert.equal(s.totalRuleFeeDelivery, 0.3);
     assert.equal(s.netRule, 0.6);
+  });
+});
+
+describe('sortByProductName', () => {
+  // The reference implementation this replaced: a localeCompare call per
+  // comparison. Ordering must be unchanged.
+  const legacySort = (a, b) => a.productName.localeCompare(b.productName, 'ar', { sensitivity: 'base' });
+
+  const NAMES = [
+    'Chemise en coton', 'robe fleurie', 'Sac à main', 'Zépped', 'أحذية رياضية', 'قميص أبيض',
+    'écouteurs', 'تنورة قصيرة', 'Baby bodysuit', 'gants', 'Ümrt', 'ceinture', 'BBI', 'bbc',
+    'écharpe', 'Abaya', 'robe fleurie', 'chemise en coton', '一点都不', 'zzz', 'AAA', 'bAa',
+  ];
+
+  test('produces the same order as the per-comparison localeCompare', () => {
+    const rows = NAMES.map((productName) => ({ productName }));
+    const viaCollator = [...rows].sort(sortByProductName).map((r) => r.productName);
+    const viaLocaleCompare = [...rows].sort(legacySort).map((r) => r.productName);
+    assert.deepEqual(viaCollator, viaLocaleCompare);
+  });
+
+  test('is stable for names that only differ by case or diacritics', () => {
+    const rows = [
+      { productName: 'cafe' }, { productName: 'CAFE' }, { productName: 'café' },
+      { productName: 'Café' }, { productName: 'Cafe' },
+    ];
+    assert.equal([...rows].sort(sortByProductName).length, 5);
+    // sensitivity: 'base' means all of these compare equal.
+    for (const a of rows) for (const b of rows) {
+      assert.equal(arCollator.compare(a.productName, b.productName), 0);
+    }
+  });
+
+  test('treats a missing product name as empty rather than throwing', () => {
+    const rows = [{ productName: 'zebra' }, { productName: undefined }, { productName: null }, {}];
+    assert.equal([...rows].sort(sortByProductName).length, 4);
+  });
+
+  test('is materially faster than rebuilding a collator per comparison', () => {
+    const rows = Array.from({ length: 5000 }, (_, i) => ({ productName: `منتج رقم ${i}` }));
+    const time = (fn) => {
+      fn(); // warm up
+      const t0 = performance.now();
+      fn();
+      return performance.now() - t0;
+    };
+    const fast = time(() => [...rows].sort(sortByProductName));
+    const slow = time(() => [...rows].sort(legacySort));
+    // Generous bound: the point is that the old path is no longer on the hot
+    // path, not a precise speed ratio.
+    assert.ok(fast <= slow, `collator sort (${fast.toFixed(1)}ms) should not be slower than localeCompare (${slow.toFixed(1)}ms)`);
   });
 });

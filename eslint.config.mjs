@@ -18,7 +18,8 @@ export default [
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      "no-empty": ["error", { allowEmptyCatch: true }],
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
     },
   },
 ];

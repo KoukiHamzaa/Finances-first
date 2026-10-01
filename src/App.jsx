@@ -1,12 +1,94 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, startTransition } from 'react';
-import { round3, formatTND, parseMoney, normalizeId, normalizeCity, GOV_ALIASES, REVERSE_GOV, resolveGov, statusBucket, parseConverty, parseLogista, parseIntigo, detectTemplate, APP_VERSION, CACHE_KEY_PREFIX, isValidName, getCachedName, setCachedName, calculateStats, enrichIntigoRows, progressStore, checkHealth } from './utils.js';
-import { supportsHoverDrag, RowCard, EnrichmentProgress, AnimatedNumber, ZoneTable } from './components.jsx';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useDeferredValue } from 'react';
+import { formatTND, detectTemplate, parseConverty, parseLogista, parseIntigo, CACHE_KEY_PREFIX, calculateStats, enrichIntigoRows, progressStore, checkHealth, sortByProductName } from './utils.js';
+import { AnimatedNumber, ZoneTable } from './components.jsx';
 
+const matchesSearch = (r, q) => (
+  (r.productName && r.productName.toLowerCase().includes(q)) ||
+  (r.nid && String(r.nid).toLowerCase().includes(q)) ||
+  (r.barcode && String(r.barcode).toLowerCase().includes(q)) ||
+  (r.phone && String(r.phone).includes(q))
+);
+
+const matchesStatus = (r, filterStatus) => {
+  if (filterStatus === 'delivered') return r.status === 'delivered';
+  if (filterStatus === 'returned') return r.status === 'returned';
+  if (filterStatus === 'in_progress') return r.status === 'in_progress' || r.status === 'return_in_progress';
+  if (filterStatus === 'cancelled') return r.status === 'cancelled';
+  if (filterStatus === 'error') return !!r.hasError;
+  return true;
+};
+
+const SORTERS = {
+  'price-desc': (a, b) => b.totalSales - a.totalSales,
+  'price-asc': (a, b) => a.totalSales - b.totalSales,
+  'city': (a, b) => String(a.city || '').localeCompare(String(b.city || '')),
+  'status': (a, b) => a.status.localeCompare(b.status),
+  'product': sortByProductName,
+};
+
+// A real custom hook so the memo is legal and its dependencies are honest.
+function useDerivedRows(sourceArray, searchQuery, filterStatus, sortOption) {
+  return useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    let res = query ? sourceArray.filter((r) => matchesSearch(r, query)) : sourceArray;
+    if (filterStatus !== 'all') res = res.filter((r) => matchesStatus(r, filterStatus));
+
+    const sorter = SORTERS[sortOption];
+    if (sorter) {
+      res = [...res].sort(sorter);
+    } else if (query) {
+      // Preserve the copy-on-write contract so callers never see a sorted view.
+      res = [...res];
+    }
+    return res;
+  }, [sourceArray, searchQuery, filterStatus, sortOption]);
+}
+
+// Declared at module level on purpose: when this lived inside App it was a new
+// component type on every render, so React unmounted and remounted both cards
+// (and their AnimatedNumbers) on every keystroke.
+const BrandSummaryCard = React.memo(({ title, stats }) => (
+          <div className="bg-surface rounded-xl shadow-sm border border-line p-5 flex-1 flex flex-col justify-between surface-highlight transition-all">
+            <h3 className="text-lg font-display text-ink mb-4">{title}</h3>
+            <div className="flex flex-col gap-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-ink-soft">إجمالي المبيعات</span>
+                <span className="font-medium text-ink tabular-nums">{formatTND(stats.totalSales)} د.ت</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-ink-soft">رسوم التوصيل</span>
+                <span className="tabular-nums text-neg" dir="ltr">−{formatTND(stats.totalRuleFeeDelivery)} د.ت</span>
+              </div>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-ink-soft">رسوم الإرجاع</span>
+                <span className="tabular-nums text-neg" dir="ltr">−{formatTND(stats.totalRuleFeeReturn)} د.ت</span>
+              </div>
+            </div>
+            <div className="pt-4 mt-4 border-t border-line flex flex-col items-start gap-4" aria-live="polite">
+              <div>
+                 <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">صافي وفق القاعدة</span>
+                 <span className="text-4xl sm:text-5xl font-mono font-extrabold text-ink leading-tight tabular-nums tracking-tight"><AnimatedNumber value={stats.netRule} /></span>
+              </div>
+              {stats.hasCarrierFee && (
+                 <div className="w-full flex justify-between bg-surface-2 p-3 rounded-lg border border-line mt-2">
+                    <div className="flex flex-col">
+                       <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-0.5">صافي وفق الفاتورة</span>
+                       <span className="text-lg font-mono font-bold text-ink tabular-nums"><AnimatedNumber value={stats.netCarrier} /></span>
+                    </div>
+                    <div className="flex flex-col text-right">
+                       <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-0.5">الفرق</span>
+                       <span className={`text-lg font-mono font-bold tabular-nums ${stats.netCarrier - stats.netRule < 0 ? 'text-neg' : (stats.netCarrier - stats.netRule > 0 ? 'text-pos' : 'text-ink-soft')}`} dir="ltr">
+                          {stats.netCarrier - stats.netRule < 0 ? '−' : (stats.netCarrier - stats.netRule > 0 ? '+' : '')}
+                          {formatTND(Math.abs(stats.netCarrier - stats.netRule))}
+                       </span>
+                    </div>
+                 </div>
+              )}
+            </div>
+          </div>
+));
 
 export default function App() {
-console.time('App Render');
-useEffect(() => { console.timeEnd('App Render'); });
-
   // Splash fade out
   useEffect(() => {
     const splash = document.getElementById('boot-splash');
@@ -132,20 +214,66 @@ useEffect(() => { console.timeEnd('App Render'); });
         setDismissedUnknownGovs(false);
       }, []);
 
-      const handleNewCompanyClick = () => {
+      // Refs mirroring state that handlers need. Handlers stay referentially
+      // stable (so ZoneTable's memo actually holds) while still reading the
+      // latest values instead of closing over stale ones.
+      const rowsByIdRef = useRef(new Map());
+      useEffect(() => {
+        const byId = new Map();
+        for (const r of masterRows) byId.set(r.id, r);
+        for (const r of cakadoRows) byId.set(r.id, r);
+        for (const r of balkisRows) byId.set(r.id, r);
+        rowsByIdRef.current = byId;
+      }, [masterRows, cakadoRows, balkisRows]);
+
+      const apiKeyRef = useRef(intigoApiKey);
+      useEffect(() => { apiKeyRef.current = intigoApiKey; }, [intigoApiKey]);
+
+      const activeCarrierRef = useRef(activeCarrier);
+      useEffect(() => { activeCarrierRef.current = activeCarrier; }, [activeCarrier]);
+
+      // Applies a batch of resolved enrichment results to whichever zone holds
+      // each row. This was copy-pasted in three places.
+      const applyEnrichmentBatch = useCallback((batch) => {
+        const byId = new Map(batch.map((r) => [r.id, r]));
+        const merge = (arr) => arr.map((row) => {
+          const next = byId.get(row.id);
+          return next
+            ? {
+                ...row,
+                productName: next.productName,
+                phone: next.phone,
+                needsEnrichment: next.needsEnrichment,
+                hasError: next.hasError,
+                enrichState: next.enrichState,
+              }
+            : row;
+        });
+        setMasterRows(merge);
+        setCakadoRows(merge);
+        setBalkisRows(merge);
+      }, []);
+
+      const startEnrichment = useCallback((rows, uploadId) => {
+        enrichIntigoRows(rows, apiKeyRef.current, uploadId, {
+          setIsEnriching,
+          setHealthStatus,
+          setError,
+          checkIsCancelled: () => uploadId !== currentUploadId.current,
+          onBatchResolved: applyEnrichmentBatch,
+        });
+      }, [applyEnrichmentBatch]);
+
+      const handleNewCompanyClick = useCallback(() => {
         const isDirty = masterRows.length > 0 || cakadoRows.length > 0 || balkisRows.length > 0 || activeCarrier || isEnriching;
         if (isDirty) {
           setShowResetModal(true);
         } else {
           resetSession();
         }
-      };
+      }, [masterRows.length, cakadoRows.length, balkisRows.length, activeCarrier, isEnriching, resetSession]);
 
-      const CACHE_KEY_PREFIX = 'intigo_nid_';
-      
-      ;
-
-      const handleClearCache = () => {
+      const handleClearCache = useCallback(() => {
          const keysToRemove = [];
          for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -154,9 +282,10 @@ useEffect(() => { console.timeEnd('App Render'); });
             }
          }
          keysToRemove.forEach(k => localStorage.removeItem(k));
-         
-         if (activeCarrier === 'INTIGO') {
-            if (!intigoApiKey || !intigoApiKey.trim()) {
+
+         if (activeCarrierRef.current === 'INTIGO') {
+            const apiKey = apiKeyRef.current;
+            if (!apiKey || !apiKey.trim()) {
                setError('أدخل مفتاح Intigo API لجلب أسماء المنتجات من الخادم.');
                return;
             }
@@ -165,45 +294,23 @@ useEffect(() => { console.timeEnd('App Render'); });
             setMasterRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
             setCakadoRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
             setBalkisRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
-            
-            const thisUploadId = currentUploadId.current; setTimeout(() => enrichIntigoRows(allToEnrich, intigoApiKey, thisUploadId, {
-    setIsEnriching,
-    setHealthStatus,
-    setError,
-    checkIsCancelled: function() { return thisUploadId !== currentUploadId.current; }, 
-    onBatchResolved: (batch) => {
-        const updateArr = (arr) => arr.map(pr => {
-            const updated = batch.find(ur => ur.id === pr.id);
-            return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
-        });
-        setMasterRows(prev => updateArr(prev));
-        setCakadoRows(prev => updateArr(prev));
-        setBalkisRows(prev => updateArr(prev));
-    }
-}), 0);
-         }
-      };
-      ;
-      
-      ;
 
-      ;
+            // Deferred so the pending state is painted before the loop starts.
+            setTimeout(() => startEnrichment(allToEnrich, currentUploadId.current), 0);
+         }
+      }, [startEnrichment]);
 
       // Drag and drop mechanics
-      const handleDragStart = (e, id) => {
+      const handleDragStart = useCallback((e, id) => {
         e.dataTransfer.setData('text/plain', id);
-      };
+      }, []);
 
-      const handleDrop = (e, targetZone) => {
+      const handleDrop = useCallback((e, targetZone) => {
         e.preventDefault();
         const id = e.dataTransfer.getData('text/plain');
         if (!id) return;
 
-        // Locate row across all three arrays
-        let row = masterRows.find(r => r.id === id) || 
-                  cakadoRows.find(r => r.id === id) || 
-                  balkisRows.find(r => r.id === id);
-
+        const row = rowsByIdRef.current.get(id);
         if (!row) return;
 
         const updateZone = (prev, zoneName) => {
@@ -215,40 +322,29 @@ useEffect(() => { console.timeEnd('App Render'); });
         setMasterRows(prev => updateZone(prev, 'master'));
         setCakadoRows(prev => updateZone(prev, 'cakado'));
         setBalkisRows(prev => updateZone(prev, 'balkis'));
-      };
+      }, []);
 
-      const handleDragOver = (e) => {
+      const handleDragOver = useCallback((e) => {
         e.preventDefault();
-      };
+      }, []);
 
-      const handleRetryEnrichment = (e, row) => {
+      const handleRetryEnrichment = useCallback((e, row) => {
         e.stopPropagation();
-        if (!intigoApiKey || !intigoApiKey.trim()) {
+        // Read the key from a ref, not from the closure: retrying after
+        // correcting a 401 must use the key the user just typed.
+        const apiKey = apiKeyRef.current;
+        if (!apiKey || !apiKey.trim()) {
           setError('أدخل مفتاح Intigo API لجلب أسماء المنتجات من الخادم.');
           return;
         }
-        
+
         const updateArr = (arr) => arr.map(r => r.id === row.id ? { ...r, enrichState: 'pending', productName: 'جاري الجلب...', hasError: false, needsEnrichment: true } : r);
         setMasterRows(prev => updateArr(prev));
         setCakadoRows(prev => updateArr(prev));
         setBalkisRows(prev => updateArr(prev));
 
-        const thisUploadId = currentUploadId.current; enrichIntigoRows([{ ...row, needsEnrichment: true }], intigoApiKey, thisUploadId, {
-    setIsEnriching,
-    setHealthStatus,
-    setError,
-    checkIsCancelled: function() { return thisUploadId !== currentUploadId.current; }, 
-    onBatchResolved: (batch) => {
-        const updateArr = (arr) => arr.map(pr => {
-            const updated = batch.find(ur => ur.id === pr.id);
-            return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
-        });
-        setMasterRows(prev => updateArr(prev));
-        setCakadoRows(prev => updateArr(prev));
-        setBalkisRows(prev => updateArr(prev));
-    }
-});
-      };
+        startEnrichment([{ ...row, needsEnrichment: true }], currentUploadId.current);
+      }, [startEnrichment]);
 
       const handleFileUpload = useCallback((file) => {
         const reader = new FileReader();
@@ -305,23 +401,7 @@ useEffect(() => { console.timeEnd('App Render'); });
               } else {
                 const pendingRows = result.rows.map(r => ({ ...r, enrichState: 'pending', needsEnrichment: true, hasError: false, productName: 'جاري الجلب...' }));
                 setMasterRows(pendingRows);
-                
-enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
-    setIsEnriching,
-    setHealthStatus,
-    setError,
-    checkIsCancelled: () => thisUploadId !== currentUploadId.current,
-    onBatchResolved: (batch) => {
-        const updateArr = (arr) => arr.map(pr => {
-            const updated = batch.find(ur => ur.id === pr.id);
-            return updated ? { ...pr, productName: updated.productName, phone: updated.phone, needsEnrichment: updated.needsEnrichment, hasError: updated.hasError, enrichState: updated.enrichState } : pr;
-        });
-        setMasterRows(prev => updateArr(prev));
-        setCakadoRows(prev => updateArr(prev));
-        setBalkisRows(prev => updateArr(prev));
-    }
-});
-
+                startEnrichment(pendingRows, thisUploadId);
               }
             }
           } catch (err) {
@@ -331,7 +411,7 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
           }
         };
         reader.readAsArrayBuffer(file);
-      }, [intigoApiKey, resetSession]);
+      }, [intigoApiKey, resetSession, startEnrichment]);
 
       const onFileInputChange = useCallback((e) => {
         if (e.target.files && e.target.files.length > 0) {
@@ -351,42 +431,13 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
 
       ;
 
-      const getDerivedView = (sourceArray) => {
-        return useMemo(() => {
-          let res = [...sourceArray];
-          
-          // Apply Search
-          if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
-            res = res.filter(r => 
-              (r.productName && r.productName.toLowerCase().includes(q)) || 
-              (r.nid && String(r.nid).toLowerCase().includes(q)) ||
-              (r.barcode && String(r.barcode).toLowerCase().includes(q)) ||
-              (r.phone && String(r.phone).includes(q))
-            );
-          }
-          
-          // Apply Filter
-          if (filterStatus === 'delivered') res = res.filter(r => r.status === 'delivered');
-          if (filterStatus === 'returned') res = res.filter(r => r.status === 'returned');
-          if (filterStatus === 'in_progress') res = res.filter(r => r.status === 'in_progress' || r.status === 'return_in_progress');
-          if (filterStatus === 'cancelled') res = res.filter(r => r.status === 'cancelled');
-          if (filterStatus === 'error') res = res.filter(r => r.hasError);
-          
-          // Apply Sort
-          if (sortOption === 'price-desc') res.sort((a, b) => b.totalSales - a.totalSales);
-          if (sortOption === 'price-asc') res.sort((a, b) => a.totalSales - b.totalSales);
-          if (sortOption === 'city') res.sort((a, b) => String(a.city || '').localeCompare(String(b.city || '')));
-          if (sortOption === 'status') res.sort((a, b) => a.status.localeCompare(b.status));
-          if (sortOption === 'product') res.sort((a, b) => a.productName.localeCompare(b.productName, 'ar', { sensitivity: 'base' }));
-          
-          return res;
-        }, [sourceArray, searchQuery, filterStatus, sortOption]);
-      };
-      
-      const viewMaster = getDerivedView(masterRows);
-      const viewCakado = getDerivedView(cakadoRows);
-      const viewBalkis = getDerivedView(balkisRows);
+      // Filtering and sorting three arrays is the expensive part of a
+      // keystroke, so the query is deferred: the input stays responsive and
+      // the list catches up a frame later.
+      const deferredSearch = useDeferredValue(searchQuery);
+      const viewMaster = useDerivedRows(masterRows, deferredSearch, filterStatus, sortOption);
+      const viewCakado = useDerivedRows(cakadoRows, deferredSearch, filterStatus, sortOption);
+      const viewBalkis = useDerivedRows(balkisRows, deferredSearch, filterStatus, sortOption);
 
       const cakadoStats = useMemo(() => calculateStats(cakadoRows, cakadoFees), [cakadoRows, cakadoFees]);
       const balkisStats = useMemo(() => calculateStats(balkisRows, balkisFees), [balkisRows, balkisFees]);
@@ -415,14 +466,14 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
         });
       }, []);
 
-      const moveSelected = (targetZone) => {
+      const moveSelected = useCallback((targetZone) => {
         const idsToMove = new Set(selectedIds);
         if (idsToMove.size === 0) return;
-        
-        // Gather from all first:
-        const allRows = [...masterRows, ...cakadoRows, ...balkisRows];
-        const movingRows = allRows.filter(r => idsToMove.has(r.id));
-        
+
+        const byId = rowsByIdRef.current;
+        const movingRows = [...byId.values()].filter((r) => idsToMove.has(r.id));
+        if (movingRows.length === 0) return;
+
         const updateZone = (prev, zoneName) => {
           const affected = zoneName === targetZone || prev.some(r => idsToMove.has(r.id));
           if (!affected) return prev;
@@ -435,9 +486,9 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
         setBalkisRows(prev => updateZone(prev, 'balkis'));
 
         setSelectedIds(new Set());
-      };
+      }, [selectedIds]);
 
-      const moveSelectedDirectly = (row, targetZone) => {
+      const moveSelectedDirectly = useCallback((row, targetZone) => {
         const setters = { master: setMasterRows, cakado: setCakadoRows, balkis: setBalkisRows };
         Object.entries(setters).forEach(([zoneName, setRows]) => {
           setRows(prev => {
@@ -446,7 +497,7 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
             return present ? prev.filter(r => r.id !== row.id) : prev;
           });
         });
-      };
+      }, []);
 
       
       const renderFeeInputs = (fees, setFees, isLocked = false) => (
@@ -479,47 +530,6 @@ enrichIntigoRows(pendingRows, intigoApiKey, thisUploadId, {
           )}
         </div>
       );
-const BrandSummaryCard = ({ title, stats }) => (
-        <div className="bg-surface rounded-xl shadow-sm border border-line p-5 flex-1 flex flex-col justify-between surface-highlight transition-all">
-          <h3 className="text-lg font-display text-ink mb-4">{title}</h3>
-          <div className="flex flex-col gap-3">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-ink-soft">إجمالي المبيعات</span>
-              <span className="font-medium text-ink tabular-nums">{formatTND(stats.totalSales)} د.ت</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-ink-soft">رسوم التوصيل</span>
-              <span className="tabular-nums text-neg" dir="ltr">−{formatTND(stats.totalRuleFeeDelivery)} د.ت</span>
-            </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-ink-soft">رسوم الإرجاع</span>
-              <span className="tabular-nums text-neg" dir="ltr">−{formatTND(stats.totalRuleFeeReturn)} د.ت</span>
-            </div>
-          </div>
-          <div className="pt-4 mt-4 border-t border-line flex flex-col items-start gap-4" aria-live="polite">
-            <div>
-               <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-1">صافي وفق القاعدة</span>
-               <span className="text-4xl sm:text-5xl font-mono font-extrabold text-ink leading-tight tabular-nums tracking-tight"><AnimatedNumber value={stats.netRule} /></span>
-            </div>
-            {stats.hasCarrierFee && (
-               <div className="w-full flex justify-between bg-surface-2 p-3 rounded-lg border border-line mt-2">
-                  <div className="flex flex-col">
-                     <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-0.5">صافي وفق الفاتورة</span>
-                     <span className="text-lg font-mono font-bold text-ink tabular-nums"><AnimatedNumber value={stats.netCarrier} /></span>
-                  </div>
-                  <div className="flex flex-col text-right">
-                     <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-0.5">الفرق</span>
-                     <span className={`text-lg font-mono font-bold tabular-nums ${stats.netCarrier - stats.netRule < 0 ? 'text-neg' : (stats.netCarrier - stats.netRule > 0 ? 'text-pos' : 'text-ink-soft')}`} dir="ltr">
-                        {stats.netCarrier - stats.netRule < 0 ? '−' : (stats.netCarrier - stats.netRule > 0 ? '+' : '')}
-                        {formatTND(Math.abs(stats.netCarrier - stats.netRule))}
-                     </span>
-                  </div>
-               </div>
-            )}
-          </div>
-        </div>
-      );
-
       const netTotalRevenue = cakadoStats.netRule + balkisStats.netRule;
       
       const carrierBadge = activeCarrier === 'CONVERTY' ? 'First Delivery' :
