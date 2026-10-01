@@ -1,31 +1,24 @@
 import js from "@eslint/js";
+import reactHooks from "eslint-plugin-react-hooks";
+import globals from "globals";
+
 export default [
+  { ignores: ["dist/**", "node_modules/**"] },
   js.configs.recommended,
   {
+    files: ["**/*.{js,jsx,mjs}"],
+    plugins: { "react-hooks": reactHooks },
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
-      globals: {
-        React: "readonly",
-        window: "readonly",
-        document: "readonly",
-        console: "readonly",
-        setTimeout: "readonly",
-        clearTimeout: "readonly",
-        localStorage: "readonly",
-        MutationObserver: "readonly",
-        requestAnimationFrame: "readonly",
-        cancelAnimationFrame: "readonly",
-        IntersectionObserver: "readonly",
-        fetch: "readonly",
-        Math: "readonly",
-        String: "readonly",
-        Set: "readonly"
-      }
+      globals: { ...globals.browser, ...globals.es2021 },
+      parserOptions: {
+        ecmaFeatures: { jsx: true },
+      },
     },
     rules: {
-      "no-undef": "error",
-      "no-unused-vars": "off"
-    }
-  }
+      ...reactHooks.configs.recommended.rules,
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+    },
+  },
 ];
