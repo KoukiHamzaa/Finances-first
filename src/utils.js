@@ -514,6 +514,10 @@ const inflight = new Map();
 
 export const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks) => {
   const { setIsEnriching, setError, setHealthStatus, onBatchResolved, checkIsCancelled } = callbacks;
+  // A run that was superseded before it started must not touch shared state at
+  // all, or it resets the spinner and the progress of the upload that replaced it.
+  if (checkIsCancelled()) return;
+
   setIsEnriching(true);
   progressStore.set({ current: 0, total: 0, errors: 0 });
 
@@ -730,6 +734,10 @@ export const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks
 
   await Promise.all(Array.from({ length: ENRICH_MAX_CONCURRENCY }, worker));
 
+  // A run that was cancelled has been replaced. Reporting its tail, or its
+  // progress, would overwrite the state of the upload that replaced it.
+  if (checkIsCancelled()) return;
+
   if (halted) {
     // Rows that never got a turn failed for the same reason.
     const finalBatch = [
@@ -756,9 +764,7 @@ export const enrichIntigoRows = async (rowsToEnrich, apiKey, uploadId, callbacks
     progressStore.set({ current, total, errors });
   }
 
-  if (!checkIsCancelled()) {
-    setIsEnriching(false);
-  }
+  setIsEnriching(false);
 }
 
 

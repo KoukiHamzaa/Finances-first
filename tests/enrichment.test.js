@@ -494,4 +494,54 @@ describe('enrichIntigoRows', () => {
 
     assert.deepEqual(enriching, [true], 'no setIsEnriching(false) after a cancel');
   });
+
+  test('a cancelled run does not report its tail into the next session', async () => {
+    let cancelled = false;
+    globalThis.fetch = mockFetch(() => okParcel('X')).impl;
+    const { ctx, batches } = harness({ checkIsCancelled: () => cancelled });
+
+    // 3 rows resolve before the cancel lands, so there is a real tail to flush.
+    const promise = enrichIntigoRows([row('A'), row('B'), row('C')], 'key', 0, ctx);
+    setTimeout(() => { cancelled = true; }, 5);
+    await promise;
+
+    assert.deepEqual(batches, [], 'the stale run reports nothing');
+  });
+
+  test('a run superseded before it starts leaves the shared progress alone', async () => {
+    const { impl, calls } = mockFetch(() => okParcel('X'));
+    globalThis.fetch = impl;
+    const { ctx, enriching } = harness({ checkIsCancelled: () => true });
+
+    // What the replacement upload has already published.
+    progressStore.set({ current: 42, total: 100, errors: 0 });
+
+    await enrichIntigoRows([row('A'), row('B')], 'key', 0, ctx);
+
+    assert.equal(calls.length, 0);
+    assert.deepEqual(enriching, [], 'the stale run never claims the screen');
+    assert.deepEqual(
+      progressStore.get(),
+      { current: 42, total: 100, errors: 0 },
+      'the stale run must not reset the shared progress'
+    );
+  });
+
+  test('a cancelled run leaves the progress of the next upload alone', async () => {
+    let cancelled = false;
+    globalThis.fetch = mockFetch(() => okParcel('X')).impl;
+    const { ctx } = harness({ checkIsCancelled: () => cancelled });
+
+    const promise = enrichIntigoRows([row('A'), row('B'), row('C')], 'key', 0, ctx);
+    setTimeout(() => { cancelled = true; }, 5);
+    // The replacement upload publishes while the stale run is still winding down.
+    await promise;
+    const afterStaleRun = { ...progressStore.get() };
+
+    assert.notDeepEqual(
+      afterStaleRun,
+      { current: 0, total: 3, errors: 0 },
+      'the stale run must not publish a final progress of its own'
+    );
+  });
 });

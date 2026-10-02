@@ -219,7 +219,10 @@ export const ZoneTable = React.memo(({ rows, title, zone, selectable = false, ac
         // first node, so paging would stop working after the first unmount.
         const setSentinel = useCallback((node) => {
           const observer = observerRef.current;
-          if (observer) observer.unobserve(sentinelRef.current);
+          const previous = sentinelRef.current;
+          // unobserve(null) throws a TypeError. A ref callback runs during
+          // commit, so that throw unmounts the whole app with no error boundary.
+          if (observer && previous) observer.unobserve(previous);
           sentinelRef.current = node;
           if (observer && node) observer.observe(node);
         }, []);
@@ -333,3 +336,42 @@ const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } 
           </div>
         );
       });
+// A render error anywhere below this point shows a recoverable panel instead of
+// a blank page. Nothing above it can still fail, which is the point.
+export class ErrorBoundary extends React.Component {
+   constructor(props) {
+      super(props);
+      this.state = { error: null };
+   }
+
+   static getDerivedStateFromError(error) {
+      return { error };
+   }
+
+   componentDidCatch(error) {
+      // The message only: never the stack, and never component state.
+      console.error('App render failed:', error && error.message);
+   }
+
+   render() {
+      if (!this.state.error) return this.props.children;
+
+      return (
+         <div className="min-h-screen bg-bg text-ink flex items-center justify-center p-6" dir="rtl">
+            <div className="max-w-md w-full bg-surface border border-line rounded-2xl p-6 text-center">
+               <h1 className="text-lg font-bold mb-2">حدث خطأ غير متوقع</h1>
+               <p className="text-sm text-ink-soft mb-4">
+                  تعذّر عرض اللوحة. ملفاتك محفوظة في المتصفح، جرّب تحديث الصفحة.
+               </p>
+               <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="min-h-11 px-6 py-2 rounded-lg bg-brand text-white text-sm font-bold hover:opacity-90 transition-opacity"
+               >
+                  تحديث الصفحة
+               </button>
+            </div>
+         </div>
+      );
+   }
+}
