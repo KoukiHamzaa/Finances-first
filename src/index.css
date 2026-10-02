@@ -1,21 +1,63 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark ([data-theme="console"] &);
+@custom-variant rtl (&:where([dir="rtl"] *, [dir="rtl"]));
 
 @theme {
   --font-sans: "Tajawal", "Sora", sans-serif;
   --font-mono: "Sora", monospace;
   --font-display: "Reem Kufi", sans-serif;
+
   
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-ink: var(--ink);
-  --color-ink-soft: var(--ink-soft);
+  --color-bg: var(--background);
+  --color-surface: var(--card);
+  --color-surface-2: var(--muted);
+  --color-ink: var(--foreground);
+  --color-ink-soft: var(--muted-foreground);
   --color-ink-faint: var(--ink-faint);
-  --color-line: var(--line);
-  --color-brand: var(--brand);
-  --color-pos: var(--pos);
-  --color-neg: var(--neg);
-  --color-warn: var(--warn);
+  --color-line: var(--border);
+  --color-brand: var(--primary);
+  --color-pos: var(--positive);
+  --color-neg: var(--destructive);
+  --color-warn: var(--warning);
+
+  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  
+  --color-positive: var(--positive);
+  --color-positive-foreground: var(--positive-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+
+  --color-surface-3: var(--surface-3);
+  --color-row-hover: var(--row-hover);
+  --color-row-selected: var(--row-selected);
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
 }
 
 @layer utilities {
@@ -30,34 +72,92 @@
 
 
     :root {
-      --bg: #ECEFF3;
+      --bg: var(--background);
+      --surface: var(--card);
+      --surface-2: var(--muted);
+      --ink: var(--foreground);
+      --ink-soft: var(--muted-foreground);
+      --line: var(--border);
+      --brand: var(--primary);
+      --pos: var(--positive);
+      --neg: var(--destructive);
+      --warn: var(--warning);
       --vignette: radial-gradient(circle at top, rgba(0,0,0,0.03), transparent 60%);
-      --surface: #FFFFFF;
-      --surface-2: #F6F8FA;
-      --ink: #0B1220;
-      --ink-soft: #475063;
-      --ink-faint: #8A93A3;
-      --line: #E2E7EE;
-      --brand: #0F766E;
-      --pos: #059669;
-      --neg: #E11D48;
-      --warn: #D97706;
       --bg-grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+
+      --background: #ECEFF3;
+      --foreground: #0B1220;
+      --card: #FFFFFF;
+      --card-foreground: #0B1220;
+      --popover: #FFFFFF;
+      --popover-foreground: #0B1220;
+      --primary: #0F766E;
+      --primary-foreground: #FFFFFF;
+      --secondary: #F6F8FA;
+      --secondary-foreground: #0B1220;
+      --muted: #F6F8FA;
+      --muted-foreground: #475063;
+      --accent: #F6F8FA;
+      --accent-foreground: #0B1220;
+      --destructive: #E11D48;
+      --destructive-foreground: #FFFFFF;
+      --border: #E2E7EE;
+      --input: #E2E7EE;
+      --ring: #0F766E;
+
+      --positive: #059669;
+      --positive-foreground: #FFFFFF;
+      --warning: #D97706;
+      --warning-foreground: #FFFFFF;
+
+      --ink-faint: #8A93A3;
+      --surface-3: #EDF0F5;
+      --row-hover: #F1F5F9;
+      --row-selected: #E0F2F0;
     }
     
     [data-theme="console"] {
-      --bg: #0B1118;
+      --bg: var(--background);
+      --surface: var(--card);
+      --surface-2: var(--muted);
+      --ink: var(--foreground);
+      --ink-soft: var(--muted-foreground);
+      --line: var(--border);
+      --brand: var(--primary);
+      --pos: var(--positive);
+      --neg: var(--destructive);
+      --warn: var(--warning);
       --vignette: radial-gradient(circle at top, rgba(255,255,255,0.03), transparent 60%);
-      --surface: #121A24;
-      --surface-2: #0E1620;
-      --ink: #E6EDF3;
-      --ink-soft: #9AA7B6;
+
+      --background: #0B1118;
+      --foreground: #E6EDF3;
+      --card: #121A24;
+      --card-foreground: #E6EDF3;
+      --popover: #121A24;
+      --popover-foreground: #E6EDF3;
+      --primary: #2DD4BF;
+      --primary-foreground: #04201D;
+      --secondary: #0E1620;
+      --secondary-foreground: #E6EDF3;
+      --muted: #0E1620;
+      --muted-foreground: #9AA7B6;
+      --accent: #16212D;
+      --accent-foreground: #E6EDF3;
+      --destructive: #FB7185;
+      --destructive-foreground: #2A0510;
+      --border: #1E2A37;
+      --input: #1E2A37;
+      --ring: #2DD4BF;
+
+      --positive: #34D399;
+      --positive-foreground: #04200F;
+      --warning: #FBBF24;
+      --warning-foreground: #241800;
+
       --ink-faint: #6E7A8A;
-      --line: #1E2A37;
-      --brand: #2DD4BF;
-      --pos: #34D399;
-      --neg: #FB7185;
-      --warn: #FBBF24;
+      --surface-3: #17222E;
+      --row-hover: #16212D;
+      --row-selected: #12302F;
     }
     
     body {
@@ -106,6 +206,15 @@
     }
     
     .tabular-nums { font-variant-numeric: tabular-nums; }
+
+    :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+      border-radius: var(--radius-sm);
+    }
+    :where(a, button, input, select, textarea, summary, [tabindex]):focus:not(:focus-visible) {
+      outline: none;
+    }
     
     @media (prefers-reduced-motion: reduce) {
       *, ::before, ::after {
