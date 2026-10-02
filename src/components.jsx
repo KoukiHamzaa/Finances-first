@@ -39,7 +39,7 @@ export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDrag
                     <div className="flex items-start gap-3">
                       {selectable && (
                         <div 
-                          className="flex items-center justify-center -ml-2 -mt-2 p-2 cursor-pointer"
+                          className="flex items-center justify-center -ms-2 -mt-2 p-2 cursor-pointer"
                           style={{ minWidth: '44px', minHeight: '44px', WebkitTapHighlightColor: 'transparent' }}
                           onClick={(e) => { e.stopPropagation(); onToggle(e, row.id); }}
                         >
@@ -65,7 +65,7 @@ export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDrag
                             <span className="font-medium text-[14px] text-ink leading-tight flex flex-wrap items-center gap-1">
                                {row.productName}
                                {row.carrier === 'INTIGO' && String(row.productName).trim().toLowerCase() === 'colis' && (
-                                  <span className="text-warn text-[10px] ml-1 flex items-center" title="الوصف افتراضي من Intigo — لم يُحدَّد اسم منتج">⚠</span>
+                                  <span className="text-warn text-[10px] ms-1 flex items-center" title="الوصف افتراضي من Intigo — لم يُحدَّد اسم منتج">⚠</span>
                                )}
                             </span>
                           </div>
@@ -151,7 +151,7 @@ export const EnrichmentProgress = () => {
         </span>
       </div>
       <div className="h-2 bg-line rounded-full overflow-hidden w-full relative">
-        <div className="absolute top-0 left-0 h-full bg-brand rounded-full transition-all duration-300" style={{ width: `${pct}%` }}></div>
+        <div className="absolute top-0 start-0 h-full bg-brand rounded-full transition-all duration-300" style={{ width: `${pct}%` }}></div>
       </div>
       {progress.errors > 0 && (
         <p className="text-[10px] text-warn mt-1.5 flex items-center gap-1">
@@ -283,7 +283,7 @@ const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } 
               e.currentTarget.style.boxShadow = '';
             }}
           >
-            {accentColor && <div className="absolute top-0 left-0 right-0 h-1" style={{ backgroundColor: accentColor }}></div>}
+            {accentColor && <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: accentColor }}></div>}
             
             <div className="bg-surface-2 p-4 border-b border-line flex justify-between items-center">
               <div className="flex items-center gap-3">
@@ -303,7 +303,7 @@ const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } 
                 )}
                 <span className="font-display text-lg text-ink">{title}</span>
               </div>
-              <div className="flex flex-col items-end text-right">
+              <div className="flex flex-col items-end text-start">
                 <span className="bg-line text-ink text-xs px-2 py-0.5 rounded-full tabular-nums font-bold">{rows.length}</span>
                 <span className="text-[10px] text-ink-faint mt-1 tabular-nums max-w-[200px] break-words">{headerCounts.join(' • ')}</span>
               </div>
@@ -357,7 +357,7 @@ export class ErrorBoundary extends React.Component {
       if (!this.state.error) return this.props.children;
 
       return (
-         <div className="min-h-screen bg-bg text-ink flex items-center justify-center p-6" dir="rtl">
+         <div className="min-h-dvh bg-bg text-ink flex items-center justify-center p-6" dir="rtl">
             <div className="max-w-md w-full bg-surface border border-line rounded-2xl p-6 text-center">
                <h1 className="text-lg font-bold mb-2">حدث خطأ غير متوقع</h1>
                <p className="text-sm text-ink-soft mb-4">

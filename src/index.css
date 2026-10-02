@@ -180,7 +180,7 @@
     body::after {
       content: "";
       position: fixed;
-      top: 0; left: 0; right: 0; height: 100vh;
+      top: 0; left: 0; right: 0; height: 100dvh;
       background: var(--vignette);
       pointer-events: none;
       z-index: -1;
@@ -208,12 +208,15 @@
     .tabular-nums { font-variant-numeric: tabular-nums; }
 
     :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-      outline: 2px solid var(--ring);
+      outline-width: 2px;
+      outline-style: solid;
+      outline-color: var(--ring);
       outline-offset: 2px;
       border-radius: var(--radius-sm);
+      transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
     }
     :where(a, button, input, select, textarea, summary, [tabindex]):focus:not(:focus-visible) {
-      outline: none;
+      outline-style: none;
     }
     
     @media (prefers-reduced-motion: reduce) {

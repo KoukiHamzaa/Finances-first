@@ -75,7 +75,7 @@ const BrandSummaryCard = React.memo(({ title, stats }) => (
                        <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-0.5">صافي وفق الفاتورة</span>
                        <span className="text-lg font-mono font-bold text-ink tabular-nums"><AnimatedNumber value={stats.netCarrier} /></span>
                     </div>
-                    <div className="flex flex-col text-right">
+                    <div className="flex flex-col text-start">
                        <span className="text-[10px] uppercase tracking-wide text-ink-faint mb-0.5">الفرق</span>
                        <span className={`text-lg font-mono font-bold tabular-nums ${stats.netCarrier - stats.netRule < 0 ? 'text-neg' : (stats.netCarrier - stats.netRule > 0 ? 'text-pos' : 'text-ink-soft')}`} dir="ltr">
                           {stats.netCarrier - stats.netRule < 0 ? '−' : (stats.netCarrier - stats.netRule > 0 ? '+' : '')}
@@ -568,7 +568,7 @@ const API_KEY_COMMIT_DELAY = 800;
       const isIntigoLocked = activeCarrier === 'INTIGO';
 
       return (
-        <div className="flex flex-col min-h-screen pb-24 text-ink transition-colors duration-250">
+        <div className="flex flex-col min-h-dvh pb-24 text-ink transition-colors duration-250">
           
           {/* Sticky Header Group */}
           <div className="sticky top-0 z-40 flex flex-col">
@@ -582,7 +582,7 @@ const API_KEY_COMMIT_DELAY = 800;
                       {carrierBadge}
                     </span>
                     {isEnriching && (
-                       <div className="w-16 h-1 bg-surface-2 rounded-full overflow-hidden ml-2" aria-live="polite" aria-label={`جاري الجلب: ${enrichProgress.current} من ${enrichProgress.total}`}>
+                       <div className="w-16 h-1 bg-surface-2 rounded-full overflow-hidden ms-2" aria-live="polite" aria-label={`جاري الجلب: ${enrichProgress.current} من ${enrichProgress.total}`}>
                          <div className="bg-brand h-full transition-all duration-300" style={{ width: `${Math.max(5, (enrichProgress.current / (enrichProgress.total||1)) * 100)}%` }}></div>
                        </div>
                     )}
@@ -632,6 +632,7 @@ const API_KEY_COMMIT_DELAY = 800;
                       style={{ transition: "background-color 250ms ease, border-color 250ms ease" }}
                     >
                       <span
+                        dir="ltr"
                         className="relative flex w-14 h-8 shrink-0 items-center rounded-full border"
                         style={{
                           backgroundColor: theme === 'console' ? "var(--surface-2)" : "#E2E7EE",
@@ -639,8 +640,8 @@ const API_KEY_COMMIT_DELAY = 800;
                           transition: "background-color 250ms ease"
                         }}
                       >
-                        <span dir="ltr" className="absolute inset-inline-start-1.5 text-[12px] leading-none" style={{ color: theme === 'console' ? "var(--ink-faint)" : "var(--warn)" }} aria-hidden="true">☀</span>
-                        <span dir="ltr" className="absolute inset-inline-end-1.5 text-[12px] leading-none" style={{ color: theme === 'console' ? "var(--brand)" : "var(--ink-faint)" }} aria-hidden="true">☾</span>
+                        <span className="absolute start-1.5 text-[12px] leading-none" style={{ color: theme === 'console' ? "var(--ink-faint)" : "var(--warn)" }} aria-hidden="true">☀</span>
+                        <span className="absolute end-1.5 text-[12px] leading-none" style={{ color: theme === 'console' ? "var(--brand)" : "var(--ink-faint)" }} aria-hidden="true">☾</span>
                         <span
                           className="absolute top-1 h-6 w-6 rounded-full shadow-sm flex items-center justify-center"
                           style={{
@@ -757,7 +758,7 @@ const API_KEY_COMMIT_DELAY = 800;
                   <p className="text-sm font-medium mb-1">حالات غير معروفة لم تُحتسب ضمن الإيرادات — راجع التصنيف:</p>
                   <p className="text-xs opacity-80 font-mono" dir="ltr">{unrecognizedStatuses.slice(0, 6).join(', ')}{unrecognizedStatuses.length > 6 ? ' و...' : ''}</p>
                 </div>
-                <button onClick={() => setUnrecognizedStatuses([])} className="absolute left-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
+                <button onClick={() => setUnrecognizedStatuses([])} className="absolute start-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
               </div>
@@ -770,7 +771,7 @@ const API_KEY_COMMIT_DELAY = 800;
                   <p className="text-sm font-medium mb-1">تم العثور على {duplicateNids.length} معرفات (NID) مكررة في الملف وتم تجاهل التكرار:</p>
                   <p className="text-xs opacity-80 font-mono" dir="ltr">{duplicateNids.slice(0, 6).join(', ')}{duplicateNids.length > 6 ? ' و...' : ''}</p>
                 </div>
-                <button onClick={() => setDuplicateNids([])} className="absolute left-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
+                <button onClick={() => setDuplicateNids([])} className="absolute start-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
               </div>
@@ -788,7 +789,7 @@ const API_KEY_COMMIT_DELAY = 800;
                            <p className="text-xs opacity-80" dir="ltr">{unk.slice(0, 6).join(', ')}{unk.length > 6 ? ' و...' : ''}</p>
                            <p className="text-xs opacity-80 mt-1">أضفها لتفادي الخطأ.</p>
                         </div>
-                        <button onClick={() => setDismissedUnknownGovs(true)} className="absolute left-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
+                        <button onClick={() => setDismissedUnknownGovs(true)} className="absolute start-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                         </button>
                      </div>
@@ -848,7 +849,7 @@ const API_KEY_COMMIT_DELAY = 800;
 
             {/* Floating Selection Bar */}
             {selectedIds.size > 0 && (
-              <div className="fixed bottom-0 left-0 right-0 p-4 z-50 pointer-events-none">
+              <div className="fixed inset-x-0 bottom-0 p-4 z-50 pointer-events-none">
                 <div className="max-w-3xl mx-auto bg-surface border border-line text-ink rounded-2xl shadow-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-4 pointer-events-auto surface-highlight">
                   <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start px-2">
                     <div className="flex items-center gap-2">
@@ -889,7 +890,7 @@ const API_KEY_COMMIT_DELAY = 800;
               </div>
             )}
             {/* Scroll Nav FABs */}
-            <div className={`fixed right-4 sm:right-8 flex flex-col gap-2 z-40 transition-all duration-300 ${selectedIds.size > 0 ? 'bottom-[100px]' : 'bottom-6'}`}>
+            <div className={`fixed end-4 sm:end-8 flex flex-col gap-2 z-40 transition-all duration-300 ${selectedIds.size > 0 ? 'bottom-[100px]' : 'bottom-6'}`}>
                <button onClick={scrollToTop} className={`p-3 bg-surface border border-line text-ink rounded-full shadow-lg hover:shadow-xl transition-all duration-300 ${scrollPos.top ? 'opacity-0 translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'}`} aria-label="أعلى الصفحة">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7"></path></svg>
                </button>
