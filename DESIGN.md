@@ -204,7 +204,22 @@ transition durations to 0.01ms. Anything new must survive that block.
 
 The sheen (`body::after` style, `.sheen::after`) is a single sweeping highlight.
 It is the one continuous animation in the app and it runs on the active tray
-only.
+only. It is disabled under `prefers-reduced-motion: reduce` and on touch
+devices (`hover: none`), where a permanent repaint costs more than it gives.
+
+**`.sheen` must keep `position: relative` and `overflow: hidden`.** The sweep
+animates `translateX` from `-100%` to `200%`, and a transformed
+absolutely-positioned pseudo-element *does* widen the scrollable overflow area.
+Without the clip, the whole document became horizontally scrollable at every
+viewport width — invisible in devtools element pickers, because
+`querySelectorAll('*')` does not enumerate pseudo-elements. Without
+`position: relative` the pseudo-element also anchored to the nearest positioned
+ancestor (the sticky header wrapper) instead of the header, so it painted over
+the search bar too.
+
+Corollary for this codebase: in RTL, overflow extends to the **left**, so a
+horizontal-overflow assertion must test `rect.left < 0`, not
+`rect.right > clientWidth`. The latter reports a clean page.
 
 ---
 
@@ -270,20 +285,34 @@ All live in `src/components/ui/`, built on `cn()` (`src/lib/utils.js`).
 | `Input` | `h-9`, `aria-invalid` → destructive border |
 | `Label` | 14px, `peer-disabled` aware |
 | `Badge` | `positive`, `negative`, `warning` map to money semantics |
-| `Checkbox` | Radix. Handles `indeterminate` (renders a dash, not a check) |
-| `Card` | `CardHeader`/`Title`/`Description`/`Content`/`Footer` |
+| `Checkbox` | Radix. Handles `indeterminate` (renders a dash, not a check). The tray select-all uses it for `aria-checked="mixed"` |
+| `Card` | `CardHeader`/`Title`/`Description`/`Content`/`Footer`. Carries `data-slot="card"`; scope to it when asserting per-tray state |
 | `Alert` | `default`, `destructive`, `warning`, `positive`; `role="alert"` |
 | `Progress` | `role="progressbar"`, inline-size transition |
 | `AlertDialog` | Radix. **Must be lazy-loaded** — see below |
-| `Tabs` | Radix. Mobile tray switcher |
+| `Tabs` | Radix. Built but deliberately unused — see Responsive Behavior |
 | `NativeSelect` | Plain `<select>`. Deliberately not Radix Select |
 | `DirectionProvider` | Wraps Radix `Direction`, defaults to `rtl` |
 
 ### Rules
 
+- **`cn()` is `clsx` only — it does not merge Tailwind classes.**
+  `tailwind-merge` was measured at 9.37 kB gzip and dropped to protect the JS
+  budget. Consequence: the *last* class wins only by Tailwind's own source
+  order, which is not something a caller can reason about. So:
+  - Never pass a utility that a component's base already sets. That applies to
+    `bg-*`, `text-*`, `rounded-*`, `border-*`, `grid`/`flex`, and `h-*`.
+  - Reach for a `variant` or `size` prop instead. `Button` takes
+    `variant="destructive"`; `AlertDialogAction` forwards `variant` to
+    `buttonVariants` instead of taking a `bg-destructive` class.
+  - If a call site seems to need an override, add a variant to the primitive.
 - **Lazy-load `AlertDialog`.** It and its focus-scope machinery are the heaviest
   primitive. Import it with `React.lazy` + `Suspense` at the call site in
   `App.jsx`.
+- **A `React.lazy` component needs a `default` export.** `lazy()` reads
+  `module.default`; a named-only export resolves to `undefined` and throws
+  `TypeError: Cannot convert object to primitive value` at first render
+  (minified: React error #306).
 - **Use `NativeSelect`, not Radix `Select`.** Radix Select builds a Popper
   portal; that is real bundle weight for a control with no search, no
   multi-select, and no positioning needs.
@@ -297,9 +326,15 @@ All live in `src/components/ui/`, built on `cn()` (`src/lib/utils.js`).
 
 | Breakpoint | Layout |
 |---|---|
-| `< 768px` | Single column. Header collapses. Trays become `Tabs`. Sheets go full-height. |
+| `< 768px` | Single column. Header stacks to three rows. Trays stack vertically, one per screen. |
 | `768–1024px` | Two-column summary grid. |
 | `> 1024px` | Full desktop table, multi-column summary. |
+
+Mobile trays are **stacked, not tabbed**. `Tabs` exists in
+`src/components/ui/` and is unused: putting the three trays behind tabs would
+hide two of them, which fights the drag-free bulk-assign flow that mobile
+relies on (`supportsHoverDrag` is false on touch, so the selection bar is the
+only way to move rows there). Revisit only if mobile LCP/INP data justifies it.
 
 - Use `min-h-dvh`, not `min-h-screen` or `100vh`. Mobile browser chrome makes
   `100vh` taller than the visible viewport, which clips sticky footers.
@@ -339,6 +374,31 @@ npm test          # 104 tests, must stay green
 npm run lint
 npm run build
 ```
+
+Then drive the built output in a real browser. Unit tests do not catch
+compositing bugs: the sheen overflow and the `React.lazy` default-export crash
+were both invisible to the test suite and to devtools.
+
+The checks that matter, at 390 / 768 / 1280 px, with a file actually uploaded:
+
+- `document.documentElement.scrollWidth <= clientWidth + 1` after load **and**
+  after toggling the theme.
+- Keyboard `Tab` onto a control; assert `outlineStyle === 'solid'`,
+  `outlineWidth === '2px'`, and `outlineColor === --ring`. Do not assert on
+  `boxShadow` — the ring is an outline.
+- Clicking one row sets the tray select-all to `aria-checked="mixed"`; clicking
+  it again empties the source tray and fills the target tray.
+- The reset dialog reports `role="alertdialog"`, paints above the overlay
+  (`elementFromPoint` over the dialog returns the dialog), and `Escape` closes
+  it.
+
+Two traps that produced false results while writing these:
+
+- Programmatic `.focus()` does **not** match `:focus-visible` in Chromium, so it
+  reports no ring on a perfectly good control. Use real `Tab` key events.
+- Count rows per tray, scoped with `closest('[data-slot="card"]')`. Row
+  checkboxes exist in all three trays, so a page-wide count looks unchanged
+  after a successful bulk move.
 
 Budgets from the pre-upgrade baseline:
 

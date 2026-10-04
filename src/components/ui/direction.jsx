@@ -1,13 +1,13 @@
 import * as React from 'react';
-import {Direction} from 'radix-ui';
+import * as DirectionPrimitive from '@radix-ui/react-direction';
 
 const DirectionContext = React.createContext('rtl');
 
 function DirectionProvider({dir = 'rtl', children}) {
   return (
-    <Direction.Provider dir={dir}>
+    <DirectionPrimitive.Provider dir={dir}>
       <DirectionContext.Provider value={dir}>{children}</DirectionContext.Provider>
-    </Direction.Provider>
+    </DirectionPrimitive.Provider>
   );
 }
 

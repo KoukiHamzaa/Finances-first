@@ -1,5 +1,5 @@
 import * as React from 'react';
-import {AlertDialog as AlertDialogPrimitive} from 'radix-ui';
+import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
 
 import {cn} from '@/lib/utils';
 import {buttonVariants} from '@/components/ui/button';
@@ -32,7 +32,7 @@ const AlertDialogContent = React.forwardRef(function AlertDialogContent(
       <AlertDialogPrimitive.Content
         ref={ref}
         className={cn(
-          'fixed inset-0 m-auto h-fit w-[calc(100%-2rem)] max-w-md',
+          'fixed inset-0 z-50 m-auto h-fit w-[calc(100%-2rem)] max-w-md',
           'gap-4 rounded-lg border border-border bg-popover p-6 text-popover-foreground shadow-lg',
           'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
           'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
@@ -84,13 +84,13 @@ const AlertDialogDescription = React.forwardRef(function AlertDialogDescription(
 });
 
 const AlertDialogAction = React.forwardRef(function AlertDialogAction(
-  {className, ...props},
+  {className, variant = 'default', ...props},
   ref
 ) {
   return (
     <AlertDialogPrimitive.Action
       ref={ref}
-      className={cn(buttonVariants({variant: 'default'}), className)}
+      className={cn(buttonVariants({variant}), className)}
       {...props}
     />
   );

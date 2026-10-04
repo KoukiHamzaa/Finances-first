@@ -233,6 +233,13 @@
       0% { transform: translateX(-100%); }
       100% { transform: translateX(200%); }
     }
+    /* `relative` anchors the sweep to the header instead of the sticky wrapper,
+       and `overflow: hidden` clips it so the translated pseudo-element cannot
+       widen the document's scrollable area. */
+    .sheen {
+      position: relative;
+      overflow: hidden;
+    }
     .sheen::after {
       content: '';
       position: absolute;
@@ -240,6 +247,11 @@
       background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
       animation: sweep 6s infinite linear;
       pointer-events: none;
+    }
+    /* The sheen is the only continuous animation in the app. Do not repaint it
+       on touch devices or when the user asked for reduced motion. */
+    @media (hover: none), (prefers-reduced-motion: reduce) {
+      .sheen::after { animation: none; }
     }
     
     [data-theme="console"] .surface-highlight {

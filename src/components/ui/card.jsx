@@ -6,6 +6,7 @@ const Card = React.forwardRef(function Card({className, ...props}, ref) {
   return (
     <div
       ref={ref}
+      data-slot="card"
       className={cn(
         'rounded-lg border border-border bg-card text-card-foreground',
         className

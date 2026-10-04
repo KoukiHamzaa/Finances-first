@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { formatTND, resolveGov, progressStore } from './utils.js';
+import { Button } from './components/ui/button.jsx';
+import { Checkbox } from './components/ui/checkbox.jsx';
+import { Badge } from './components/ui/badge.jsx';
+import { Card } from './components/ui/card.jsx';
+import { Progress } from './components/ui/progress.jsx';
 
 
 export const supportsHoverDrag = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)').matches : false;
@@ -9,26 +14,26 @@ export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDrag
                 const govInfo = resolveGov(row.city);
                 
                 const statusPills = {
-                  'delivered': { label: 'مُسلّم', colors: 'bg-pos/10 text-pos' },
-                  'returned': { label: 'مسترجع', colors: 'bg-neg/10 text-neg' },
-                  'cancelled': { label: 'ملغي', colors: 'bg-ink-faint/10 text-ink-faint line-through' },
-                  'exchange': { label: 'تبادل', colors: 'bg-warn/10 text-warn' },
-                  'in_progress': { label: 'قيد التنفيذ', colors: 'bg-brand/10 text-brand' },
-                  'return_in_progress': { label: 'إرجاع قيد التنفيذ', colors: 'bg-brand/10 text-brand' },
-                  'other': { label: 'أخرى', colors: 'bg-surface-2 text-ink-soft' }
+                  'delivered': { label: 'مُسلّم', variant: 'positive' },
+                  'returned': { label: 'مسترجع', variant: 'negative' },
+                  'cancelled': { label: 'ملغي', variant: 'secondary', className: 'line-through' },
+                  'exchange': { label: 'تبادل', variant: 'warning' },
+                  'in_progress': { label: 'قيد التنفيذ', variant: 'default' },
+                  'return_in_progress': { label: 'إرجاع قيد التنفيذ', variant: 'default' },
+                  'other': { label: 'أخرى', variant: 'secondary' }
                 };
                 const pill = statusPills[row.status] || statusPills['other'];
 
                 
   return (
-    <div
+    <Card
                     key={row.id}
                     draggable={supportsHoverDrag}
                     onDragStart={supportsHoverDrag ? (e) => onDragStart(e, row.id) : undefined}
                     onClick={selectable ? (e) => onToggle(e, row.id) : undefined}
-                    className={`bg-surface border p-3 rounded-xl shadow-sm transition-all duration-200 group relative active:scale-[0.99]
-                      ${selectable ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : (supportsHoverDrag ? 'cursor-grab active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-md' : 'cursor-pointer')} 
-                      ${selected ? 'border-brand ring-1 ring-brand bg-brand/5' : 'border-line'}
+                    className={`rounded-xl p-3 transition-all duration-200 group relative active:scale-[0.99]
+                      ${selectable ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md' : (supportsHoverDrag ? 'cursor-grab active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-md' : 'cursor-pointer')}
+                      ${selected ? 'border-brand ring-1 ring-brand bg-row-selected' : 'border-line hover:bg-row-hover'}
                     `}
                     style={{
                       ...(i < 12 ? { animation: `fadeInUp 0.3s ease-out ${i * 0.03}s both` } : {}),
@@ -43,11 +48,10 @@ export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDrag
                           style={{ minWidth: '44px', minHeight: '44px', WebkitTapHighlightColor: 'transparent' }}
                           onClick={(e) => { e.stopPropagation(); onToggle(e, row.id); }}
                         >
-                          <input
-                              type="checkbox"
-                              className="w-5 h-5 rounded cursor-pointer accent-brand pointer-events-none"
+                          <Checkbox
+                            className="size-5 cursor-pointer pointer-events-none"
                             checked={selected}
-                            readOnly
+                            aria-label={`تحديد الطلب ${row.productName || row.id}`}
                           />
                         </div>
                       )}
@@ -90,13 +94,13 @@ export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDrag
                         </div>
                         <div className="flex justify-between items-center mt-1">
                           <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[11px] font-medium ${pill.colors}`} title={row.originalStatusText}>
+                            <Badge variant={pill.variant} className={`text-[11px] ${pill.className || ''}`} title={row.originalStatusText}>
                               {pill.label} {row.status === 'in_progress' && '⚠'}
-                            </span>
+                            </Badge>
                             {row.hasError && (
-                              <button onClick={(e) => onRetry(e, row)} className="text-[11px] text-brand hover:underline flex items-center gap-1 min-h-[44px] px-2">
+                              <Button variant="link" size="sm" onClick={(e) => onRetry(e, row)} className="text-[11px] min-h-[44px] px-2">
                                 ⚠ إعادة المحاولة
-                              </button>
+                              </Button>
                             )}
                           </div>
                           
@@ -111,17 +115,17 @@ export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDrag
                           <div className="flex gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity focus-within:opacity-100">
                             {zone === 'master' ? (
                               <React.Fragment>
-                                <button onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'cakado'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ كاكادو</button>
-                                <button onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'balkis'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">→ بلقيس</button>
+                                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'cakado'); }} className="text-[11px] rounded-full min-h-[44px]">→ كاكادو</Button>
+                                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'balkis'); }} className="text-[11px] rounded-full min-h-[44px]">→ بلقيس</Button>
                               </React.Fragment>
                             ) : (
-                              <button onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'master'); }} className="text-[11px] font-medium bg-surface-2 hover:bg-line text-ink px-3 py-1.5 rounded-full min-h-[44px]">↩ إلغاء</button>
+                              <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'master'); }} className="text-[11px] rounded-full min-h-[44px]">↩ إلغاء</Button>
                             )}
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </Card>
   );
 }, (prevProps, nextProps) => {
   return prevProps.selected === nextProps.selected &&
@@ -140,25 +144,20 @@ export const EnrichmentProgress = () => {
   useEffect(() => progressStore.subscribe(() => setProgress(progressStore.get())), []);
   
   if (progress.total === 0 || progress.current === progress.total) return null;
-  const pct = Math.round((progress.current / progress.total) * 100);
-  
+
   return (
-    <div className="bg-surface border p-3 rounded-xl shadow-sm mb-4">
+    <Card className="p-3 mb-4">
       <div className="flex justify-between items-end mb-2">
         <span className="font-bold text-sm text-ink">جاري جلب الأسماء (Intigo)...</span>
-        <span className="font-mono text-xs text-brand font-bold bg-brand/10 px-2 py-0.5 rounded-full" dir="ltr">
-          {progress.current} / {progress.total}
-        </span>
+        <Badge dir="ltr" className="font-mono text-xs rounded-full">{progress.current} / {progress.total}</Badge>
       </div>
-      <div className="h-2 bg-line rounded-full overflow-hidden w-full relative">
-        <div className="absolute top-0 start-0 h-full bg-brand rounded-full transition-all duration-300" style={{ width: `${pct}%` }}></div>
-      </div>
+      <Progress value={progress.current} max={progress.total || 1} className="h-2" label={`جاري جلب الأسماء: ${progress.current} من ${progress.total}`} />
       {progress.errors > 0 && (
         <p className="text-[10px] text-warn mt-1.5 flex items-center gap-1">
           <span>⚠</span> فشل جلب {progress.errors} طلبات.
         </p>
       )}
-    </div>
+    </Card>
   );
 };
 
@@ -245,6 +244,7 @@ export const ZoneTable = React.memo(({ rows, title, zone, selectable = false, ac
         }, []);
 
         const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
+const someSelected = rows.some(r => selectedIds.has(r.id));
 const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } = useMemo(() => {
           return {
             delCount: rows.filter(r=>r.status==='delivered').length,
@@ -266,8 +266,8 @@ const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } 
         if (prepaidCount > 0) headerCounts.push('مدفوع مسبقاً: ' + prepaidCount);
 
         return (
-          <div 
-            className="bg-surface rounded-xl shadow-sm border border-line flex flex-col h-full min-h-[400px] relative overflow-hidden transition-transform duration-200"
+          <Card 
+            className="h-full min-h-[400px] transition-transform duration-200"
             onDrop={(e) => {
               e.currentTarget.style.transform = 'translateY(0)';
               e.currentTarget.style.boxShadow = '';
@@ -290,21 +290,20 @@ const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } 
                 {selectable && (
                   <div 
                     className="flex items-center justify-center p-2 cursor-pointer"
-                    style={{ minWidth: '44px', minHeight: '44px', WebkitTapHighlightColor: 'transparent', marginLeft: '-12px' }}
+                    style={{ minWidth: '44px', minHeight: '44px', WebkitTapHighlightColor: 'transparent', marginInlineStart: '-12px' }}
                     onClick={() => onToggleSelectAll(rows)}
                   >
-                    <input
-                       type="checkbox"
-                       className="w-4 h-4 rounded cursor-pointer accent-brand pointer-events-none"
-                       checked={allSelected}
-                       readOnly
+                    <Checkbox
+                      className="size-4 cursor-pointer pointer-events-none"
+                      checked={allSelected ? true : (someSelected ? 'indeterminate' : false)}
+                      aria-label={`تحديد كل الطلبات في ${title}`}
                     />
                   </div>
                 )}
                 <span className="font-display text-lg text-ink">{title}</span>
               </div>
               <div className="flex flex-col items-end text-start">
-                <span className="bg-line text-ink text-xs px-2 py-0.5 rounded-full tabular-nums font-bold">{rows.length}</span>
+                <Badge variant="secondary" className="text-xs rounded-full tabular-nums font-bold">{rows.length}</Badge>
                 <span className="text-[10px] text-ink-faint mt-1 tabular-nums max-w-[200px] break-words">{headerCounts.join(' • ')}</span>
               </div>
             </div>
@@ -333,7 +332,7 @@ const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } 
   <div ref={setSentinel} className="h-4 w-full" />
 )}
             </div>
-          </div>
+          </Card>
         );
       });
 // A render error anywhere below this point shows a recoverable panel instead of
@@ -357,20 +356,19 @@ export class ErrorBoundary extends React.Component {
       if (!this.state.error) return this.props.children;
 
       return (
-         <div className="min-h-dvh bg-bg text-ink flex items-center justify-center p-6" dir="rtl">
-            <div className="max-w-md w-full bg-surface border border-line rounded-2xl p-6 text-center">
+<div className="min-h-dvh bg-bg text-ink flex items-center justify-center p-6" dir="rtl">
+            <Card className="max-w-md w-full p-6 text-center rounded-2xl">
                <h1 className="text-lg font-bold mb-2">حدث خطأ غير متوقع</h1>
                <p className="text-sm text-ink-soft mb-4">
                   تعذّر عرض اللوحة. ملفاتك محفوظة في المتصفح، جرّب تحديث الصفحة.
                </p>
-               <button
-                  type="button"
+               <Button
                   onClick={() => window.location.reload()}
-                  className="min-h-11 px-6 py-2 rounded-lg bg-brand text-white text-sm font-bold hover:opacity-90 transition-opacity"
+                  className="min-h-11 px-6 py-2 rounded-lg text-sm font-bold"
                >
                   تحديث الصفحة
-               </button>
-            </div>
+               </Button>
+            </Card>
          </div>
       );
    }

@@ -1,6 +1,17 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, useDeferredValue } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useDeferredValue, Suspense, lazy } from 'react';
 import { formatTND, detectTemplate, parseConverty, parseLogista, parseIntigo, CACHE_KEY_PREFIX, calculateStats, enrichIntigoRows, progressStore, checkHealth, sortByProductName } from './utils.js';
 import { AnimatedNumber, ZoneTable } from './components.jsx';
+import { Button } from './components/ui/button.jsx';
+import { Input } from './components/ui/input.jsx';
+import { Label } from './components/ui/label.jsx';
+import { Badge } from './components/ui/badge.jsx';
+import { Card } from './components/ui/card.jsx';
+import { Alert, AlertDescription, AlertTitle } from './components/ui/alert.jsx';
+import { Progress } from './components/ui/progress.jsx';
+import { NativeSelect } from './components/ui/native-select.jsx';
+
+// Dialog + Radix focus-scope only load when a confirmation is actually opened.
+const ConfirmDialog = lazy(() => import('./components/ui/confirm-dialog.jsx'));
 
 const matchesSearch = (r, q) => (
   (r.productName && r.productName.toLowerCase().includes(q)) ||
@@ -48,7 +59,7 @@ function useDerivedRows(sourceArray, searchQuery, filterStatus, sortOption) {
 // component type on every render, so React unmounted and remounted both cards
 // (and their AnimatedNumbers) on every keystroke.
 const BrandSummaryCard = React.memo(({ title, stats }) => (
-          <div className="bg-surface rounded-xl shadow-sm border border-line p-5 flex-1 flex flex-col justify-between surface-highlight transition-all">
+          <Card className="rounded-xl p-5 flex-1 flex flex-col justify-between surface-highlight transition-all">
             <h3 className="text-lg font-display text-ink mb-4">{title}</h3>
             <div className="flex flex-col gap-3">
               <div className="flex justify-between items-center text-sm">
@@ -85,7 +96,7 @@ const BrandSummaryCard = React.memo(({ title, stats }) => (
                  </div>
               )}
             </div>
-          </div>
+          </Card>
 ));
 
 export default function App() {
@@ -529,34 +540,42 @@ const API_KEY_COMMIT_DELAY = 800;
 
       
       const renderFeeInputs = (fees, setFees, isLocked = false) => (
-        <div className="mt-4 bg-surface p-4 rounded-xl shadow-sm border border-line flex flex-col gap-3">
+        <Card className="mt-4 p-4 flex flex-col gap-3">
           <h4 className="text-sm font-bold text-ink flex items-center justify-between">
             <span>إعدادات الرسوم</span>
-            {isLocked && <span className="text-[10px] uppercase tracking-wider text-warn bg-warn/10 px-2 py-0.5 rounded font-mono">تلقائية 7/1/2</span>}
+            {isLocked && <Badge variant="warning" className="uppercase tracking-wider font-mono">تلقائية 7/1/2</Badge>}
           </h4>
           {!isLocked && (
             <div className="space-y-3">
               <div>
-                <label className="block text-[11px] font-medium text-ink-soft mb-1 uppercase tracking-wide">رسوم التوصيل (TND)</label>
-                <input
-                  type="number" step="0.001" min="0" dir="ltr"
-                  className="w-full bg-surface-2 border border-line rounded px-2 py-1.5 text-sm text-ink outline-none focus:border-brand tabular-nums"
+                <Label htmlFor="fee-delivery" className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم التوصيل (TND)</Label>
+                <Input
+                  id="fee-delivery"
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  dir="ltr"
+                  className="bg-surface-2 tabular-nums"
                   value={fees.delivery || 0}
                   onChange={e => setFees(prev => ({ ...prev, delivery: parseFloat(e.target.value) || 0 }))}
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-medium text-ink-soft mb-1 uppercase tracking-wide">رسوم الإرجاع (TND)</label>
-                <input
-                  type="number" step="0.001" min="0" dir="ltr"
-                  className="w-full bg-surface-2 border border-line rounded px-2 py-1.5 text-sm text-ink outline-none focus:border-brand tabular-nums"
+                <Label htmlFor="fee-return" className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم الإرجاع (TND)</Label>
+                <Input
+                  id="fee-return"
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  dir="ltr"
+                  className="bg-surface-2 tabular-nums"
                   value={fees.return || 0}
                   onChange={e => setFees(prev => ({ ...prev, return: parseFloat(e.target.value) || 0 }))}
                 />
               </div>
             </div>
           )}
-        </div>
+        </Card>
       );
       const netTotalRevenue = cakadoStats.netRule + balkisStats.netRule;
       
@@ -578,13 +597,16 @@ const API_KEY_COMMIT_DELAY = 800;
                 {/* Row A on mobile, Left on desktop */}
                 <div className="flex items-center justify-between w-full md:w-auto gap-4">
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className="bg-surface-2 border border-line text-ink-soft text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded">
+                    <Badge variant="secondary" className="text-[11px] uppercase tracking-wider font-bold">
                       {carrierBadge}
-                    </span>
+                    </Badge>
                     {isEnriching && (
-                       <div className="w-16 h-1 bg-surface-2 rounded-full overflow-hidden ms-2" aria-live="polite" aria-label={`جاري الجلب: ${enrichProgress.current} من ${enrichProgress.total}`}>
-                         <div className="bg-brand h-full transition-all duration-300" style={{ width: `${Math.max(5, (enrichProgress.current / (enrichProgress.total||1)) * 100)}%` }}></div>
-                       </div>
+                       <Progress
+                         className="w-16 ms-2"
+                         value={enrichProgress.current}
+                         max={enrichProgress.total || 1}
+                         label={`جاري الجلب: ${enrichProgress.current} من ${enrichProgress.total}`}
+                       />
                     )}
                   </div>
 
@@ -618,7 +640,7 @@ const API_KEY_COMMIT_DELAY = 800;
 
                   {/* Row C: Controls */}
                   <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 w-full md:w-auto">
-                    <button onClick={handleClearCache} className="shrink-0 flex items-center gap-1.5 px-4 min-h-[44px] bg-transparent border border-line text-ink-soft hover:text-brand hover:border-brand transition-colors rounded-full text-xs font-bold" aria-label="مسح ذاكرة المنتجات" title="مسح ذاكرة المنتجات وتحديث الأسماء">مسح ذاكرة المنتجات</button>
+                    <Button variant="outline" size="sm" onClick={handleClearCache} className="shrink-0 rounded-full min-h-[44px] font-bold" aria-label="مسح ذاكرة المنتجات" title="مسح ذاكرة المنتجات وتحديث الأسماء">مسح ذاكرة المنتجات</Button>
                     <span className={`shrink-0 w-2.5 h-2.5 rounded-full mx-1 ${effectiveHealthStatus === 'connected' ? 'bg-pos' : (effectiveHealthStatus === 'offline' || effectiveHealthStatus === 'endpoint_unknown') ? 'bg-warn animate-pulse' : effectiveHealthStatus === 'checking' ? 'bg-brand animate-pulse' : 'bg-neg'}`} title={effectiveHealthStatus === 'connected' ? 'متصل' : effectiveHealthStatus === 'offline' ? 'غير متصل' : effectiveHealthStatus === 'endpoint_unknown' ? 'تعذّر التحقق من الصحة — سيتم التأكد عند أول طلب' : effectiveHealthStatus === 'checking' ? 'جاري التحقق...' : 'مفتاح API غير صالح'}></span>
 
                     <button
@@ -654,10 +676,10 @@ const API_KEY_COMMIT_DELAY = 800;
                       </span>
                     </button>
 
-                    <button onClick={handleNewCompanyClick} className="shrink-0 flex items-center gap-1.5 px-4 min-h-[44px] bg-transparent border border-line text-ink-soft hover:text-brand hover:border-brand transition-colors rounded-full text-xs font-bold" aria-label="مسح الجلسة الحالية والبدء بشركة توصيل أخرى" title="مسح الجلسة الحالية والبدء بشركة توصيل أخرى">
+                    <Button variant="outline" size="sm" onClick={handleNewCompanyClick} className="shrink-0 rounded-full min-h-[44px] font-bold" aria-label="مسح الجلسة الحالية والبدء بشركة توصيل أخرى" title="مسح الجلسة الحالية والبدء بشركة توصيل أخرى">
                       <span>شركة جديدة</span>
-                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    </button>
+                      <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -681,22 +703,25 @@ const API_KEY_COMMIT_DELAY = 800;
                   const label = status === 'all' ? 'الكل' : status === 'delivered' ? 'مُسلّم' : status === 'returned' ? 'مسترجع' : status === 'in_progress' ? 'قيد التنفيذ' : status === 'cancelled' ? 'ملغي' : '⚠ خطأ';
                   const active = filterStatus === status;
                   return (
-                    <button 
+                    <Button
                       key={status}
+                      size="sm"
                       aria-pressed={active}
                       onClick={() => setFilterStatus(status)}
-                      className={`focus-visible:ring-2 focus-visible:ring-brand focus:outline-none whitespace-nowrap px-3 py-1.5 min-h-[44px] rounded-full text-xs font-medium transition-colors ${active ? 'bg-ink text-surface' : 'bg-surface border border-line text-ink-soft hover:bg-surface-2'}`}
+                      variant={active ? 'default' : 'outline'}
+                      className={`rounded-full min-h-[44px] whitespace-nowrap ${active ? 'bg-ink text-surface hover:opacity-90' : 'text-ink-soft hover:bg-surface-2'}`}
                     >
                       {label}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
               <div className="flex items-center gap-2 whitespace-nowrap">
-                <select 
-                  className="text-xs bg-surface border border-line rounded-lg px-3 py-2 text-ink outline-none focus:border-brand"
+                <NativeSelect
+                  className="text-xs py-1.5"
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value)}
+                  aria-label="ترتيب النتائج"
                 >
                   <option value="default">الترتيب الافتراضي</option>
                   <option value="price-desc">السعر (الأعلى)</option>
@@ -704,7 +729,7 @@ const API_KEY_COMMIT_DELAY = 800;
                   <option value="city">الولاية</option>
                   <option value="status">الحالة</option>
                   <option value="product">الاسم (أ - ي)</option>
-                </select>
+                </NativeSelect>
               </div>
             </div>
           </div>
@@ -739,61 +764,61 @@ const API_KEY_COMMIT_DELAY = 800;
 
             {/* Toasts / Errors */}
             {error && (
-              <div className="bg-warn/10 text-warn border border-warn/20 rounded-lg p-4 flex items-center gap-3">
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <p className="text-sm font-medium">{error}</p>
-              </div>
+              <Alert variant="warning" className="flex items-center gap-3">
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <AlertTitle className="font-medium">{error}</AlertTitle>
+              </Alert>
             )}
             {autoFeesInfo && (
-              <div className="bg-pos/10 text-pos border border-pos/20 rounded-lg p-4 flex items-center gap-3">
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <p className="text-sm font-medium">تم ضبط الرسوم تلقائياً من Logista.</p>
-              </div>
+              <Alert variant="positive" className="flex items-center gap-3">
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <AlertTitle className="font-medium">تم ضبط الرسوم تلقائياً من Logista.</AlertTitle>
+              </Alert>
             )}
             
             {unrecognizedStatuses.length > 0 && (
-              <div className="bg-warn/10 text-warn border border-warn/20 rounded-lg p-4 flex items-start gap-3 relative animate-in fade-in slide-in-from-top-2">
-                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                <div className="flex-1">
-                  <p className="text-sm font-medium mb-1">حالات غير معروفة لم تُحتسب ضمن الإيرادات — راجع التصنيف:</p>
+              <Alert variant="warning" className="flex items-start gap-3 relative animate-in fade-in slide-in-from-top-2">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <AlertDescription className="flex-1">
+                  <AlertTitle className="mb-1">حالات غير معروفة لم تُحتسب ضمن الإيرادات — راجع التصنيف:</AlertTitle>
                   <p className="text-xs opacity-80 font-mono" dir="ltr">{unrecognizedStatuses.slice(0, 6).join(', ')}{unrecognizedStatuses.length > 6 ? ' و...' : ''}</p>
-                </div>
-                <button onClick={() => setUnrecognizedStatuses([])} className="absolute start-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
-                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-              </div>
+                </AlertDescription>
+                <Button variant="ghost" size="icon-sm" onClick={() => setUnrecognizedStatuses([])} className="absolute start-1 top-1 opacity-60 hover:opacity-100 min-h-[44px] min-w-[44px]" aria-label="إخفاء التحذير">
+                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </Button>
+              </Alert>
             )}
             
             {duplicateNids.length > 0 && (
-              <div className="bg-warn/10 text-warn border border-warn/20 rounded-lg p-4 flex items-start gap-3 relative animate-in fade-in slide-in-from-top-2">
-                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                <div className="flex-1">
-                  <p className="text-sm font-medium mb-1">تم العثور على {duplicateNids.length} معرفات (NID) مكررة في الملف وتم تجاهل التكرار:</p>
+              <Alert variant="warning" className="flex items-start gap-3 relative animate-in fade-in slide-in-from-top-2">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <AlertDescription className="flex-1">
+                  <AlertTitle className="mb-1">تم العثور على {duplicateNids.length} معرفات (NID) مكررة في الملف وتم تجاهل التكرار:</AlertTitle>
                   <p className="text-xs opacity-80 font-mono" dir="ltr">{duplicateNids.slice(0, 6).join(', ')}{duplicateNids.length > 6 ? ' و...' : ''}</p>
-                </div>
-                <button onClick={() => setDuplicateNids([])} className="absolute start-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
-                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-              </div>
+                </AlertDescription>
+                <Button variant="ghost" size="icon-sm" onClick={() => setDuplicateNids([])} className="absolute start-1 top-1 opacity-60 hover:opacity-100 min-h-[44px] min-w-[44px]" aria-label="إخفاء التحذير">
+                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </Button>
+              </Alert>
             )}
             
             {!dismissedUnknownGovs && (cakadoStats.newUnknownGovs.length > 0 || balkisStats.newUnknownGovs.length > 0) && (
                (() => {
                  const unk = [...new Set([...cakadoStats.newUnknownGovs, ...balkisStats.newUnknownGovs])];
                  if (unk.length > 0) {
-                   return (
-                     <div className="bg-warn/10 text-warn border border-warn/20 rounded-lg p-4 flex items-start gap-3 relative animate-in fade-in slide-in-from-top-2">
-                        <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                        <div className="flex-1">
-                           <p className="text-sm font-medium mb-1">ولايات غير معروفة في خريطة الرسوم (تم احتساب 2 د.ت):</p>
+return (
+                      <Alert variant="warning" className="flex items-start gap-3 relative animate-in fade-in slide-in-from-top-2">
+                        <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        <AlertDescription className="flex-1">
+                           <AlertTitle className="mb-1">ولايات غير معروفة في خريطة الرسوم (تم احتساب 2 د.ت):</AlertTitle>
                            <p className="text-xs opacity-80" dir="ltr">{unk.slice(0, 6).join(', ')}{unk.length > 6 ? ' و...' : ''}</p>
                            <p className="text-xs opacity-80 mt-1">أضفها لتفادي الخطأ.</p>
-                        </div>
-                        <button onClick={() => setDismissedUnknownGovs(true)} className="absolute start-1 top-1 opacity-60 hover:opacity-100 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center">
-                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                     </div>
-                   );
+                        </AlertDescription>
+                        <Button variant="ghost" size="icon-sm" onClick={() => setDismissedUnknownGovs(true)} className="absolute start-1 top-1 opacity-60 hover:opacity-100 min-h-[44px] min-w-[44px]" aria-label="إخفاء التحذير">
+                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </Button>
+                     </Alert>
+                    );
                  }
                  return null;
                })()
@@ -853,21 +878,21 @@ const API_KEY_COMMIT_DELAY = 800;
                 <div className="max-w-3xl mx-auto bg-surface border border-line text-ink rounded-2xl shadow-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-4 pointer-events-auto surface-highlight">
                   <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start px-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm bg-brand text-white px-2.5 py-0.5 rounded-full shadow-sm">{selectedIds.size}</span>
+                      <Badge className="font-bold shadow-sm">{selectedIds.size}</Badge>
                       <span className="text-ink-soft font-medium text-sm">محدد</span>
                     </div>
-                    <button onClick={() => setSelectedIds(new Set())} className="text-ink-faint hover:text-ink text-sm font-medium px-2 py-1 rounded transition-colors">إلغاء</button>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="text-ink-faint hover:text-ink font-medium">إلغاء</Button>
                   </div>
                   <div className="flex gap-2 w-full sm:w-auto overflow-x-auto hide-scrollbar">
-                    <button onClick={() => moveSelected('master')} className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 bg-surface-2 hover:bg-line text-ink rounded-xl text-sm font-bold transition-all hover:-translate-y-0.5">
+                    <Button variant="secondary" size="lg" onClick={() => moveSelected('master')} className="flex-1 sm:flex-none rounded-xl whitespace-nowrap font-bold">
                       إلى غير مصنفة
-                    </button>
-                    <button onClick={() => moveSelected('cakado')} className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 bg-brand hover:bg-brand/90 text-white rounded-xl text-sm font-bold transition-all hover:-translate-y-0.5 shadow-sm shadow-brand/20">
+                    </Button>
+                    <Button size="lg" onClick={() => moveSelected('cakado')} className="flex-1 sm:flex-none rounded-xl whitespace-nowrap font-bold shadow-sm shadow-brand/20">
                       تعيين كاكادو
-                    </button>
-                    <button onClick={() => moveSelected('balkis')} className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold transition-all hover:-translate-y-0.5 shadow-sm shadow-blue-600/20">
+                    </Button>
+                    <Button size="lg" onClick={() => moveSelected('balkis')} className="flex-1 sm:flex-none rounded-xl whitespace-nowrap font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-sm shadow-blue-600/20">
                       تعيين بلقيس
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -875,28 +900,27 @@ const API_KEY_COMMIT_DELAY = 800;
             
             {/* Reset Modal */}
             {showResetModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-[#0B1220]/60 backdrop-blur-sm transition-opacity" onClick={() => setShowResetModal(false)}></div>
-                <div className="relative bg-surface border border-line rounded-xl shadow-2xl p-6 max-w-sm w-full animate-in fade-in zoom-in-95 duration-200">
-                  <h2 className="font-display text-xl text-ink mb-2">بدء جلسة جديدة؟</h2>
-                  <p className="text-ink-soft text-sm mb-6 leading-relaxed">
-                    سيتم مسح جميع الطلبات المصنّفة والنتائج الحالية لشركة التوصيل هذه. لا يمكن التراجع عن هذا الإجراء.
-                  </p>
-                  <div className="flex gap-3 justify-end">
-                    <button onClick={() => setShowResetModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium text-ink-soft hover:bg-surface-2 border border-transparent transition-colors">إلغاء</button>
-                    <button onClick={resetSession} className="px-4 py-2 rounded-lg text-sm font-bold text-white bg-neg hover:bg-neg/90 transition-colors shadow-sm shadow-neg/20">مسح والبدء</button>
-                  </div>
-                </div>
-              </div>
+              <Suspense fallback={null}>
+                <ConfirmDialog
+                  open
+                  onOpenChange={(open) => setShowResetModal(open)}
+                  title="بدء جلسة جديدة؟"
+                  description="سيتم مسح جميع الطلبات المصنّفة والنتائج الحالية لشركة التوصيل هذه. لا يمكن التراجع عن هذا الإجراء."
+                  cancelLabel="إلغاء"
+                  actionLabel="مسح والبدء"
+                  actionVariant="destructive"
+                  onAction={resetSession}
+                />
+              </Suspense>
             )}
             {/* Scroll Nav FABs */}
             <div className={`fixed end-4 sm:end-8 flex flex-col gap-2 z-40 transition-all duration-300 ${selectedIds.size > 0 ? 'bottom-[100px]' : 'bottom-6'}`}>
-               <button onClick={scrollToTop} className={`p-3 bg-surface border border-line text-ink rounded-full shadow-lg hover:shadow-xl transition-all duration-300 ${scrollPos.top ? 'opacity-0 translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'}`} aria-label="أعلى الصفحة">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7"></path></svg>
-               </button>
-               <button onClick={scrollToBottom} className={`p-3 bg-surface border border-line text-ink rounded-full shadow-lg hover:shadow-xl transition-all duration-300 ${scrollPos.bottom ? 'opacity-0 -translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'}`} aria-label="أسفل الصفحة">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-               </button>
+               <Button variant="ghost" size="icon" onClick={scrollToTop} className={`p-3 bg-surface border border-line text-ink rounded-full shadow-lg hover:shadow-xl transition-all duration-300 ${scrollPos.top ? 'opacity-0 translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'}`} aria-label="أعلى الصفحة">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7"></path></svg>
+               </Button>
+               <Button variant="ghost" size="icon" onClick={scrollToBottom} className={`p-3 bg-surface border border-line text-ink rounded-full shadow-lg hover:shadow-xl transition-all duration-300 ${scrollPos.bottom ? 'opacity-0 -translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'}`} aria-label="أسفل الصفحة">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+               </Button>
             </div>
           </main>
         </div>
