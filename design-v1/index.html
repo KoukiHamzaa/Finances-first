@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تصميم 1 — دفتر · Design v1 Ledger</title>
+  <meta name="description" content="Design v1 Ledger — the dashboard as a printed statement: full-width ruled tables, sections stacked in reading order, hairline rules and no cards." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"></noscript>
+  <link rel="stylesheet" href="./v1.css">
+</head>
+<body class="folio" data-preview data-selected-count="2">
+
+  <div class="edge-rule" aria-hidden="true"></div>
+
+  <!-- Letterhead. The app is pretending to be the top of a printed page. -->
+  <header class="letterhead">
+    <div class="letterhead-inner">
+      <div class="crest">
+        <span class="seal" aria-hidden="true">د</span>
+        <span class="crest-text">
+          <strong>دفتر التوصيل</strong>
+          <small>سجلّ الطلبات</small>
+        </span>
+      </div>
+      <dl class="letterhead-meta">
+        <div><dt>كشف</dt><dd>№ 2026‑0417</dd></div>
+        <div><dt>التاريخ</dt><dd>04 أكتوبر 2026</dd></div>
+        <div><dt>الحالة</dt><dd class="ok">متصل بـ Intigo</dd></div>
+      </dl>
+    </div>
+  </header>
+
+  <!-- Title + net figure, set like the heading of a statement. -->
+  <section class="statement-head">
+    <div class="statement-head-inner">
+      <div>
+        <h1>كشف التسوية</h1>
+        <p class="sub">طلبات منصة واحدة · كل حركة من شركات الشحن الجوي</p>
+      </div>
+      <div class="net">
+        <span>صافي الإيرادات</span>
+        <strong>1 284 750<small>د.ت</small></strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- Controls sit in one ruled strip, the way a form does on paper. -->
+  <section class="control-strip" aria-label="أدوات">
+    <div class="control-strip-inner">
+      <label class="field">
+        <span>مفتاح Intigo API</span>
+        <input type="password" value="sk-live-9f42c1" readonly />
+      </label>
+      <label class="field grow">
+        <span>بحث</span>
+        <input type="search" placeholder="ابحث بالاسم أو الولاية أو الرمز" />
+      </label>
+      <label class="field">
+        <span>الترتيب</span>
+        <select>
+          <option>الترتيب الافتراضي</option>
+          <option>السعر (الأعلى)</option>
+          <option>الولاية</option>
+          <option>الحالة</option>
+        </select>
+      </label>
+      <div class="strip-actions">
+        <button class="btn" type="button">شركة جديدة</button>
+        <button class="btn" type="button">مسح ذاكرة المنتجات</button>
+      </div>
+    </div>
+    <nav class="status-chips" aria-label="تصفية حسب الحالة">
+      <button class="chip is-on" type="button" aria-pressed="true">الكل</button>
+      <button class="chip" type="button" aria-pressed="false">مُسلّم</button>
+      <button class="chip" type="button" aria-pressed="false">مسترجع</button>
+      <button class="chip" type="button" aria-pressed="false">قيد التنفيذ</button>
+      <button class="chip" type="button" aria-pressed="false">ملغي</button>
+      <button class="chip" type="button" aria-pressed="false">خطأ</button>
+    </nav>
+  </section>
+
+  <div class="selectionbar" data-selection-bar>
+    <div class="selectionbar-inner">
+      <p class="selectionbar-count"><b data-count>2</b> محدَّد</p>
+      <div class="selectionbar-acts">
+        <button class="btn" type="button">إلغاء</button>
+        <button class="btn" type="button">إلى غير مصنفة</button>
+        <button class="btn" type="button">تعيين كاكادو</button>
+        <button class="btn strong" type="button">تعيين بلقيس</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="statement">
+
+    <!-- Ruled summary: label ......... value, the way a statement opens. -->
+    <section class="summary" aria-label="ملخّص العلامات">
+      <h2 class="section-label">الملخّص</h2>
+      <div class="summary-grid">
+        <dl class="summary-block">
+          <dt>كاكادو <small>CAKADO</small></dt>
+          <dd class="figure">842 300</dd>
+          <dd class="split"><span>مُسلّم <b>128</b></span><span>مسترجع <b>14</b></span><span>رسوم <b>7,00</b></span></dd>
+        </dl>
+        <dl class="summary-block">
+          <dt>بلقيس <small>BALKIS</small></dt>
+          <dd class="figure">442 450</dd>
+          <dd class="split"><span>مُسلّم <b>71</b></span><span>مسترجع <b>9</b></span><span>رسوم <b>5,50</b></span></dd>
+        </dl>
+      </div>
+    </section>
+
+    <p class="note"><b>معلومة.</b> تم جلب 6 أسماء من Intigo بنجاح. الطلبات المتبقية قيد المعالجة.</p>
+    <p class="note warn"><b>تنبيه.</b> 3 طلبات تحمل وصفاً افتراضياً غير مؤكّد — راجعها قبل الفوترة.</p>
+
+    <!-- ============ Sections: stacked, full width, one table each ============ -->
+
+    <section class="ledger-section" data-tray data-tray-id="unsorted">
+      <div class="section-head">
+        <button class="tally" type="button" data-select-all data-select aria-checked="mixed" aria-label="تحديد كل طلبات غير مصنفة">
+          <span data-state aria-hidden="true"></span>
+        </button>
+        <h2>غير مصنفة</h2>
+        <p class="section-tally">3 طلبات · <b>−9 500</b></p>
+      </div>
+
+      <table class="ledger">
+        <thead>
+          <tr>
+            <th class="c-pick"><span class="visually-hidden">تحديد</span></th>
+            <th class="c-desc">البيان</th>
+            <th class="c-wilaya">الولاية</th>
+            <th class="c-status">الحالة</th>
+            <th class="c-amount">المبلغ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row is-selected" data-row>
+            <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="true" aria-label="تحديد الطلب BC-311"><span data-state aria-hidden="true"></span></button></td>
+            <td class="c-desc"><span class="row-name" data-row-name>Chemise en coton</span><span class="row-meta">BC-311</span></td>
+            <td class="c-wilaya">تونس</td>
+            <td class="c-status"><span class="tag tag-returned">مسترجع</span></td>
+            <td class="c-amount"><span class="amount is-neg">−12,500</span></td>
+          </tr>
+          <tr class="row" data-row>
+            <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BC-312"><span data-state aria-hidden="true"></span></button></td>
+            <td class="c-desc"><span class="row-name" data-row-name>Robe fleurie</span><span class="row-meta">BC-312</span></td>
+            <td class="c-wilaya">سوسة</td>
+            <td class="c-status"><span class="tag tag-void">ملغي</span></td>
+            <td class="c-amount"><span class="amount">—</span></td>
+          </tr>
+          <tr class="row is-selected" data-row>
+            <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="true" aria-label="تحديد الطلب BC-313"><span data-state aria-hidden="true"></span></button></td>
+            <td class="c-desc"><span class="row-name" data-row-name>Ceinture cuir</span><span class="row-meta">BC-313</span></td>
+            <td class="c-wilaya">نابل</td>
+            <td class="c-status"><span class="tag tag-live">قيد التنفيذ</span></td>
+            <td class="c-amount"><span class="amount is-pos">+3,000</span></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="5">مجموع القسم <span class="amount">−9 500</span></td></tr>
+        </tfoot>
+      </table>
+
+      <div class="section-moves">
+        <button class="btn small" type="button">← كاكادو</button>
+        <button class="btn small" type="button">← بلقيس</button>
+      </div>
+    </section>
+
+    <section class="ledger-section" data-tray data-tray-id="cakado">
+      <div class="section-head">
+        <button class="tally" type="button" data-select-all data-select aria-checked="false" aria-label="تحديد كل طلبات كاكادو">
+          <span data-state aria-hidden="true"></span>
+        </button>
+        <h2>كاكادو</h2>
+        <p class="section-tally">2 طلبان · <b>295 000</b></p>
+      </div>
+
+      <table class="ledger">
+        <thead>
+          <tr>
+            <th class="c-pick"><span class="visually-hidden">تحديد</span></th>
+            <th class="c-desc">البيان</th>
+            <th class="c-wilaya">الولاية</th>
+            <th class="c-status">الحالة</th>
+            <th class="c-amount">المبلغ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row" data-row>
+            <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب CA-201"><span data-state aria-hidden="true"></span></button></td>
+            <td class="c-desc"><span class="row-name" data-row-name>Lampe bureau</span><span class="row-meta">CA-201</span></td>
+            <td class="c-wilaya">أريانة</td>
+            <td class="c-status"><span class="tag tag-ok">مُسلّم</span></td>
+            <td class="c-amount"><span class="amount is-pos">+45,000</span></td>
+          </tr>
+          <tr class="row" data-row>
+            <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب CA-202"><span data-state aria-hidden="true"></span></button></td>
+            <td class="c-desc"><span class="row-name" data-row-name>Tapis berbère</span><span class="row-meta">CA-202</span></td>
+            <td class="c-wilaya">صفاقس</td>
+            <td class="c-status"><span class="tag tag-ok">مُسلّم</span></td>
+            <td class="c-amount"><span class="amount is-pos">+250,000</span></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="5">مجموع القسم <span class="amount">295 000</span></td></tr>
+        </tfoot>
+      </table>
+
+      <div class="fees">
+        <span class="fees-label">الرسوم</span>
+        <span class="fees-locked">تلقائية 7,00 / 1,00 / 2,00</span>
+      </div>
+    </section>
+
+    <section class="ledger-section" data-tray data-tray-id="balkis">
+      <div class="section-head">
+        <button class="tally" type="button" data-select-all data-select aria-checked="false" aria-label="تحديد كل طلبات بلقيس">
+          <span data-state aria-hidden="true"></span>
+        </button>
+        <h2>بلقيس</h2>
+        <p class="section-tally">2 طلبان · <b>73 749</b></p>
+      </div>
+
+      <table class="ledger">
+        <thead>
+          <tr>
+            <th class="c-pick"><span class="visually-hidden">تحديد</span></th>
+            <th class="c-desc">البيان</th>
+            <th class="c-wilaya">الولاية</th>
+            <th class="c-status">الحالة</th>
+            <th class="c-amount">المبلغ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="row" data-row>
+            <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BA-101"><span data-state aria-hidden="true"></span></button></td>
+            <td class="c-desc"><span class="row-name" data-row-name>Bijoux fantaisie</span><span class="row-meta">BA-101</span></td>
+            <td class="c-wilaya">بنزرت</td>
+            <td class="c-status"><span class="tag tag-swap">تبادل</span></td>
+            <td class="c-amount"><span class="amount is-neg">−15,250</span></td>
+          </tr>
+          <tr class="row" data-row>
+            <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BA-102"><span data-state aria-hidden="true"></span></button></td>
+            <td class="c-desc"><span class="row-name" data-row-name>Sac à main</span><span class="row-meta">BA-102</span></td>
+            <td class="c-wilaya">القيروان</td>
+            <td class="c-status"><span class="tag tag-ok">مُسلّم</span></td>
+            <td class="c-amount"><span class="amount is-pos">+88,999</span></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="5">مجموع القسم <span class="amount">73 749</span></td></tr>
+        </tfoot>
+      </table>
+
+      <div class="fees">
+        <span class="fees-label">الرسوم</span>
+        <span class="fees-field"><span>توصيل</span><input type="number" value="7.00" step="0.001" dir="ltr" /></span>
+        <span class="fees-field"><span>إرجاع</span><input type="number" value="5.50" step="0.001" dir="ltr" /></span>
+      </div>
+    </section>
+
+    <!-- Grand total, ruled twice. The last thing you read. -->
+    <section class="grand-total" aria-label="الإجمالي">
+      <p><span>إجمالي الطلبات</span><b>7</b></p>
+      <p><span>صافي التحصيل</span><b>1 284 750</b></p>
+      <p class="rule-double"><span>الرصيد المستحق</span><b>1 284 750 د.ت</b></p>
+    </section>
+  </main>
+
+  <nav class="switcher" aria-label="مبدّل التصاميم">
+    <span class="switcher-label">التصاميم</span>
+    <a href="/design-v1/" aria-current="page">v1 · دفتر</a>
+    <a href="/design-v2/">v2 · طرفية</a>
+    <a href="/design-v3/">v3 · حجر رملي</a>
+    <a href="/design-v4/">v4 · رمادي فقي</a>
+    <a href="/design-v5/">v5 · أسود</a>
+    <a href="/design/" class="switcher-all">كل التصاميم</a>
+    <a href="/" class="switcher-main">الصفحة الرئيسية</a>
+  </nav>
+
+  <script type="module" src="../design/preview.js"></script>
+</body>
+</html>

@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تصميم 4 — رمادي فقي · Design v4 Slate</title>
+  <meta name="description" content="Design v4 Slate — a two-pane master/detail workspace: a scrolling order index beside the full detail of whichever order is active. Densities collapse into one column on phones." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="./v4.css">
+</head>
+<body class="slate" data-preview data-selected-count="2">
+
+  <!-- A thin rail, not a header. The panes own the page. -->
+  <header class="rail">
+    <div class="rail-inner">
+      <div class="rail-brand">
+        <span class="rail-mark" aria-hidden="true"></span>
+        <strong>دفتر التوصيل</strong>
+        <span class="rail-live">متصل بـ Intigo</span>
+      </div>
+      <dl class="rail-figures">
+        <div><dt>الطلبات</dt><dd>7</dd></div>
+        <div><dt>الصافي</dt><dd>1 284 750</dd></div>
+        <div><dt>القيمة</dt><dd>1 512 000</dd></div>
+        <div><dt>الرسوم</dt><dd>57 500</dd></div>
+      </dl>
+      <div class="rail-tools">
+        <input type="search" placeholder="ابحث في الفهرس" aria-label="ابحث في الفهرس" />
+        <button class="rail-btn" type="button">شركة جديدة</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Two panes. Start side is the index; the detail follows it. -->
+  <main class="split">
+
+    <section class="pane pane-index" aria-label="فهرس الطلبات">
+      <div class="pane-head">
+        <h2>الفهرس</h2>
+        <div class="pane-head-tools">
+          <select aria-label="ترتيب الفهرس">
+            <option>الأحدث</option>
+            <option>الأعلى قيمة</option>
+            <option>حسب الحالة</option>
+          </select>
+          <select aria-label="تصفية الحالة">
+            <option>كل الحالات</option>
+            <option>مُسلّم</option>
+            <option>مسترجع</option>
+            <option>قيد التنفيذ</option>
+            <option>ملغي</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- The index bar is just the running total. Select-all lives in each
+           tray header, because that is the unit the shared contract toggles. -->
+      <div class="index-bar">
+        <span class="index-sum">7 طلبات · قيمة 1 512 000 د.ت · رسوم 57 500 د.ت</span>
+        <span class="index-hint">انقر صفاً لعرض تفاصيله</span>
+      </div>
+
+      <div class="trays">
+
+        <section class="tray" data-tray data-tray-id="open">
+          <div class="tray-head">
+            <h3 class="tray-title">مفتوحة <span>3</span></h3>
+            <button class="pick-all" type="button" data-select-all data-select aria-checked="mixed" aria-label="تحديد كل الطلبات المفتوحة">
+              <span data-state aria-hidden="true"></span>
+              <b>تحديد الكل</b>
+            </button>
+          </div>
+          <ul class="index">
+            <li class="idx is-selected is-active" data-row
+                data-detail-name="Chemise en coton"
+                data-detail-ref="BC-311"
+                data-detail-brand="بلقيس"
+                data-detail-wilaya="تونس"
+                data-detail-status="مسترجع"
+                data-detail-amount="−12 500"
+                data-detail-note="رفض المستلم. أُعيد إلى المخزن بتاريخ 12 جويلية."
+                data-detail-client="سارة بن عمار"
+                data-detail-phone="+216 55 214 903">
+              <button class="pick" type="button" data-select data-row-toggle aria-checked="true" aria-label="تحديد الطلب BC-311">
+                <span data-state aria-hidden="true"></span>
+              </button>
+              <div class="idx-body">
+                <p class="idx-name" data-row-name>Chemise en coton</p>
+                <p class="idx-sub">BC-311 · تونس</p>
+              </div>
+              <span class="pill pill-neg">مسترجع</span>
+              <span class="amt is-neg">−12 500</span>
+            </li>
+
+            <li class="idx is-selected" data-row
+                data-detail-name="Ceinture cuir"
+                data-detail-ref="BC-313"
+                data-detail-brand="بلقيس"
+                data-detail-wilaya="نابل"
+                data-detail-status="قيد التنفيذ"
+                data-detail-amount="+3 000"
+                data-detail-note="في الطريق منذ 14 جويلية. التوقيع مطلوب من المستلم."
+                data-detail-client="يوسف الحداد"
+                data-detail-phone="+216 50 887 412">
+              <button class="pick" type="button" data-select data-row-toggle aria-checked="true" aria-label="تحديد الطلب BC-313">
+                <span data-state aria-hidden="true"></span>
+              </button>
+              <div class="idx-body">
+                <p class="idx-name" data-row-name>Ceinture cuir</p>
+                <p class="idx-sub">BC-313 · نابل</p>
+              </div>
+              <span class="pill pill-warn">قيد التنفيذ</span>
+              <span class="amt is-pos">+3 000</span>
+            </li>
+
+            <li class="idx" data-row
+                data-detail-name="Robe fleurie"
+                data-detail-ref="BC-312"
+                data-detail-brand="بلقيس"
+                data-detail-wilaya="سوسة"
+                data-detail-status="ملغي"
+                data-detail-amount="—"
+                data-detail-note="أُلغي بناءً على طلب العميل قبل الشحن."
+                data-detail-client="منى الطرابلسي"
+                data-detail-phone="+216 22 310 776">
+              <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BC-312">
+                <span data-state aria-hidden="true"></span>
+              </button>
+              <div class="idx-body">
+                <p class="idx-name" data-row-name>Robe fleurie</p>
+                <p class="idx-sub">BC-312 · سوسة</p>
+              </div>
+              <span class="pill pill-void">ملغي</span>
+              <span class="amt">—</span>
+            </li>
+          </ul>
+        </section>
+
+        <section class="tray" data-tray data-tray-id="cakado">
+          <div class="tray-head">
+            <h3 class="tray-title">كاكادو <span>2</span></h3>
+            <button class="pick-all" type="button" data-select-all data-select aria-checked="false" aria-label="تحديد كل طلبات كاكادو">
+              <span data-state aria-hidden="true"></span>
+              <b>تحديد الكل</b>
+            </button>
+          </div>
+          <ul class="index">
+            <li class="idx" data-row
+                data-detail-name="Lampe bureau"
+                data-detail-ref="CA-201"
+                data-detail-brand="كاكادو"
+                data-detail-wilaya="أريانة"
+                data-detail-status="مُسلّم"
+                data-detail-amount="+45 000"
+                data-detail-note="سُلّم مقابل توقيع المستلم. الفاتورة DP-4410 صدرت يوم 09 جويلية."
+                data-detail-client="شركة MedTech"
+                data-detail-phone="+216 71 940 118">
+              <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب CA-201">
+                <span data-state aria-hidden="true"></span>
+              </button>
+              <div class="idx-body">
+                <p class="idx-name" data-row-name>Lampe bureau</p>
+                <p class="idx-sub">CA-201 · أريانة</p>
+              </div>
+              <span class="pill pill-ok">مُسلّم</span>
+              <span class="amt is-pos">+45 000</span>
+            </li>
+
+            <li class="idx" data-row
+                data-detail-name="Tapis berbère"
+                data-detail-ref="CA-202"
+                data-detail-brand="كاكادو"
+                data-detail-wilaya="صفاقس"
+                data-detail-status="مُسلّم"
+                data-detail-amount="+250 000"
+                data-detail-note="أكبر طلب في الدفعة. يحتاج تحقّيراً مزدوجاً قبل الإقفال."
+                data-detail-client="Ateliers Ksar"
+                data-detail-phone="+216 74 220 655">
+              <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب CA-202">
+                <span data-state aria-hidden="true"></span>
+              </button>
+              <div class="idx-body">
+                <p class="idx-name" data-row-name>Tapis berbère</p>
+                <p class="idx-sub">CA-202 · صفاقس</p>
+              </div>
+              <span class="pill pill-ok">مُسلّم</span>
+              <span class="amt is-pos">+250 000</span>
+            </li>
+
+            <div class="fees">
+              <span class="fees-label">رسوم كاكادو</span>
+              <label><span>توصيل</span><input type="number" value="7.00" step="0.001" dir="ltr" /></label>
+              <label><span>إرجاع</span><input type="number" value="1.00" step="0.001" dir="ltr" /></label>
+              <label><span>تبادل</span><input type="number" value="2.00" step="0.001" dir="ltr" /></label>
+            </div>
+          </ul>
+        </section>
+
+        <section class="tray" data-tray data-tray-id="balkis">
+          <div class="tray-head">
+            <h3 class="tray-title">بلقيس <span>2</span></h3>
+            <button class="pick-all" type="button" data-select-all data-select aria-checked="false" aria-label="تحديد كل طلبات بلقيس">
+              <span data-state aria-hidden="true"></span>
+              <b>تحديد الكل</b>
+            </button>
+          </div>
+          <ul class="index">
+            <li class="idx" data-row
+                data-detail-name="Bijoux fantaisie"
+                data-detail-ref="BA-101"
+                data-detail-brand="بلقيس"
+                data-detail-wilaya="بنزرت"
+                data-detail-status="تبادل"
+                data-detail-amount="−15 250"
+                data-detail-note="استُبدل المقاس L بـ M. فرق السعر يعود للعميل نقداً."
+                data-detail-client="أميرة الماس"
+                data-detail-phone="+216 36 774 208">
+              <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BA-101">
+                <span data-state aria-hidden="true"></span>
+              </button>
+              <div class="idx-body">
+                <p class="idx-name" data-row-name>Bijoux fantaisie</p>
+                <p class="idx-sub">BA-101 · بنزرت</p>
+              </div>
+              <span class="pill pill-info">تبادل</span>
+              <span class="amt is-neg">−15 250</span>
+            </li>
+
+            <li class="idx" data-row
+                data-detail-name="Sac à main"
+                data-detail-ref="BA-102"
+                data-detail-brand="بلقيس"
+                data-detail-wilaya="القيروان"
+                data-detail-status="مُسلّم"
+                data-detail-amount="+88 999"
+                data-detail-note="مُسلّم ومُصفّى. رسوم 5.50 مستخرجة."
+                data-detail-client="خديجة البريكي"
+                data-detail-phone="+216 77 553 019">
+              <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BA-102">
+                <span data-state aria-hidden="true"></span>
+              </button>
+              <div class="idx-body">
+                <p class="idx-name" data-row-name>Sac à main</p>
+                <p class="idx-sub">BA-102 · القيروان</p>
+              </div>
+              <span class="pill pill-ok">مُسلّم</span>
+              <span class="amt is-pos">+88 999</span>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </section>
+
+    <!-- Detail pane. Fed by clicking an index row. -->
+    <section class="pane pane-detail" data-detail aria-label="تفاصيل الطلب">
+      <div class="detail-head">
+        <div>
+          <p class="detail-ref" data-detail-field="ref">BC-311</p>
+          <h2 class="detail-name" data-detail-field="name">Chemise en coton</h2>
+        </div>
+        <span class="pill pill-neg detail-status" data-detail-field="status">مسترجع</span>
+      </div>
+
+      <div class="detail-amount">
+        <small>صافي الطلب</small>
+        <strong data-detail-field="amount">−12 500</strong>
+        <span class="detail-brand" data-detail-field="brand">بلقيس</span>
+      </div>
+
+      <dl class="detail-grid">
+        <div><dt>الولاية</dt><dd data-detail-field="wilaya">تونس</dd></div>
+        <div><dt>العميل</dt><dd data-detail-field="client">سارة بن عمار</dd></div>
+        <div><dt>الهاتف</dt><dd data-detail-field="phone" dir="ltr">+216 55 214 903</dd></div>
+        <div><dt>الوصف</dt><dd data-detail-field="note">رفض المستلم.</dd></div>
+      </dl>
+
+      <div class="detail-actions">
+        <button class="d-act" type="button">تعيين إلى كاكادو</button>
+        <button class="d-act" type="button">تعيين إلى بلقيس</button>
+        <button class="d-act" type="button">فتح في Intigo</button>
+        <button class="d-act d-act-quiet" type="button">تغيير الحالة</button>
+      </div>
+
+      <div class="detail-log">
+        <h3>سجل النشاط</h3>
+        <ol>
+          <li><b>12 جويلية · 09:14</b> رُفض الاستلام، أُعيدت الكمية إلى المخزن.</li>
+          <li><b>11 جويلية · 17:02</b> غادرت الحزمة مستودع سوسة.</li>
+          <li><b>10 جويلية · 11:38</b> أُضيفت التكلفة 12 500 د.ت من Intigo.</li>
+          <li><b>09 جويلية · 15:20</b> أُنشئ الطلب باسم «Chemise en coton».</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <!-- Selection bar spans the full width so it reads as the window's footer. -->
+  <div class="selbar" data-selection-bar>
+    <p class="selbar-count"><b data-count>2</b> محدَّد</p>
+    <ul class="selbar-list" data-selected-list aria-label="الطلبات المحدَّدة"></ul>
+    <div class="selbar-acts">
+      <button class="s-act" type="button">إلغاء</button>
+      <button class="s-act s-act-on" type="button">غير مصنفة</button>
+      <button class="s-act s-act-brand" type="button">كاكادو</button>
+      <button class="s-act s-act-brand2" type="button">بلقيس</button>
+    </div>
+  </div>
+
+  <nav class="switcher" aria-label="مبدّل التصاميم">
+    <span class="switcher-label">التصاميم</span>
+    <a href="/design-v1/">v1 · دفتر</a>
+    <a href="/design-v2/">v2 · طرفية</a>
+    <a href="/design-v3/">v3 · حجر رملي</a>
+    <a href="/design-v4/" aria-current="page">v4 · رمادي فقي</a>
+    <a href="/design-v5/">v5 · أسود</a>
+    <a href="/design/" class="switcher-all">كل التصاميم</a>
+    <a href="/" class="switcher-main">الصفحة الرئيسية</a>
+  </nav>
+
+  <script type="module" src="../design/preview.js"></script>
+</body>
+</html>

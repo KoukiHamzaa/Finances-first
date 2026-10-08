@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>التصاميم المقترحة · Design gallery</title>
+  <meta name="description" content="Five candidate layouts for the delivery dashboard. They differ in structure, not just colour: a ledger, a console, a card flow, a master-detail split and a kanban." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="./gallery.css">
+</head>
+<body>
+
+  <header class="top">
+    <p class="eyebrow" dir="ltr">Finances-first</p>
+    <h1>خمسة تخطيطات مختلفة للوحة الطلبات</h1>
+    <p class="lede">
+      هذه المرة الاختلاف في البنية نفسها لا في اللون: صفحة عمود واحد، صفحة جدول واحد،
+      صفحة بطاقات متتابعة، صفحة لوحتين، وصفحة أعمدة كاملة الارتفاع. كل صفحة
+      ملف HTML مستقل بخطوطه وتخطيطه، والتفاعلات واحدة، والمحتوى واحد.
+    </p>
+    <p class="lede lede-en" dir="ltr">
+      These differ in structure, not skin. A single reading column, one dense table, a
+      card flow, a master–detail split, and a full-height board. Same data, same
+      interactions, five different information architectures.
+    </p>
+  </header>
+
+  <ol class="gallery">
+
+    <li class="entry" style="--a:#f6f2e9;--b:#1c1814;--c:#96692c;--d:#2f6b4f">
+      <a href="/design-v1/">
+        <span class="route" dir="ltr">/design-v1</span>
+        <h2>دفتر <small dir="ltr">Ledger</small></h2>
+        <p class="pitch">عمود قراءة واحد عريض. الجداول فوق بعضها كسجلّ محاسبي، بخلاصة في الأعلى ومجموع نهائي في الأسفل. لا بطاقات ولا شبكة أعمدة.</p>
+        <p class="pitch-en" dir="ltr">One reading column. Real tables stacked vertically, statement summary on top, grand total at the bottom.</p>
+        <p class="traits" dir="ltr">Amiri · IBM Plex Sans Arabic · stacked tables · hairline rules · no shadows</p>
+        <span class="swatches" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      </a>
+    </li>
+
+    <li class="entry" style="--a:#0b0f0c;--b:#5bf58c;--c:#ffb454;--d:#ff6b6b">
+      <a href="/design-v2/">
+        <span class="route" dir="ltr">/design-v2</span>
+        <h2>طرفية <small dir="ltr">Terminal</small></h2>
+        <p class="pitch">جدول واحد كثيف بدل ثلاث قوائم. الصناديق تفصلها صفوف فاصلة داخل نفس الجدول، وسطر أوامر ثابت في الأسفل. داكن فقط.</p>
+        <p class="pitch-en" dir="ltr">One dense table instead of three lists. Trays are separator rows inside it, with a fixed command line.</p>
+        <p class="traits" dir="ltr">IBM Plex Mono · scanlines · phosphor · 0px radius · dark only</p>
+        <span class="swatches" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      </a>
+    </li>
+
+    <li class="entry" style="--a:#fbf8f3;--b:#2a1c0f;--c:#8c6f4e;--d:#2f5c31">
+      <a href="/design-v3/">
+        <span class="route" dir="ltr">/design-v3</span>
+        <h2>حجر رملي <small dir="ltr">Sandstone</small></h2>
+        <p class="pitch">بطاقة واحدة كبيرة في كل سطر داخل عمود واحد، وصندوق واحد فقط يظهر في كل مرة عبر شريط تبويب. شريط الإجراءات ثابت في الأسفل.</p>
+        <p class="pitch-en" dir="ltr">One large card per row in a single column. A tab strip shows one tray at a time; the action bar never leaves.</p>
+        <p class="traits" dir="ltr">Almarai · Outfit · tray tabs · 18px radius · mobile first</p>
+        <span class="swatches" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      </a>
+    </li>
+
+    <li class="entry" style="--a:#f6f7f9;--b:#3d63b4;--c:#8d332a;--d:#24603a">
+      <a href="/design-v4/">
+        <span class="route" dir="ltr">/design-v4</span>
+        <h2>لوحتان <small dir="ltr">Slate</small></h2>
+        <p class="pitch">فهرس الطلبات في جهة، وتفاصيل الطلب النشط في الجهة الأخرى مع سجل نشاطه. الضغط على أي صف يغيّر اللوحة المقابلة. على الهاتف تصير اللوحتان فوق بعض.</p>
+        <p class="pitch-en" dir="ltr">Order index on one side, the active order's full detail on the other. Clicking a row swaps the detail.</p>
+        <p class="traits" dir="ltr">IBM Plex Sans Arabic · Inter · 1px borders · 8px radius · two panes</p>
+        <span class="swatches" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      </a>
+    </li>
+
+    <li class="entry" style="--a:#08090b;--b:#5aa9ff;--c:#ffb454;--d:#46d18a">
+      <a href="/design-v5/">
+        <span class="route" dir="ltr">/design-v5</span>
+        <h2>لوحة أعمدة <small dir="ltr">Noir</small></h2>
+        <p class="pitch">ثلاثة أعمدة حسب مرحلة الطلب، بارتفاع الشاشة كامل. الصفحة نفسها لا تمرّر أبدًا؛ كل عمود يمرّر وحده. على الهاتف تصير أعمدة متجاورة.</p>
+        <p class="pitch-en" dir="ltr">Three lanes by workflow stage at full viewport height. The page never scrolls; each lane does.</p>
+        <p class="traits" dir="ltr">IBM Plex Sans Arabic · JetBrains Mono · 100dvh lanes · snap carousel on mobile</p>
+        <span class="swatches" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      </a>
+    </li>
+
+  </ol>
+
+  <footer class="foot">
+    <a href="/">→ الصفحة الرئيسية</a>
+  </footer>
+
+</body>
+</html>

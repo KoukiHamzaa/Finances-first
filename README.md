@@ -17,6 +17,18 @@ A secure, offline-first React SPA for financial reconciliation of e-commerce car
 - `src/utils.js`: Data parsing, formatting, external API handling, and constants.
 - `src/index.css`: Tailwind v4 configuration and custom CSS variables.
 
+## Design previews
+
+Five candidate **layouts** live at `/design/` (gallery) and `/design-v1/` … `/design-v5/`. They are standalone static pages — no React, no shared code with the app — so they can be compared and swapped without touching production. Their DOM trees are intentionally *not* interchangeable: each one is a different information architecture over the same data. See `design/README.md`.
+
+| Route | Name | Layout |
+| --- | --- | --- |
+| `/design-v1/` | Ledger (دفتر) | one reading column, real tables stacked vertically |
+| `/design-v2/` | Terminal (طرفية) | one dense table, trays as separator rows, command line |
+| `/design-v3/` | Sandstone (حجر رملي) | one card per row, tray tabs, permanent action bar |
+| `/design-v4/` | Slate (لوحتان) | master–detail: scrolling index beside the active order |
+| `/design-v5/` | Noir (لوحة أعمدة) | full-height kanban lanes, each scrolling on its own |
+
 ## Features
 
 - **Automated Carrier Parsing**: Transparently auto-detects column structures and row mapping for Converty, Logista, and Intigo exports based on exact header signatures.

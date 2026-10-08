@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تصميم 5 — أسود · Design v5 Noir</title>
+  <meta name="description" content="Design v5 Noir — a full-height kanban: every lane scrolls on its own, the page itself never does. Columns are workflow stages, with per-lane totals and per-lane bulk actions." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="./v5.css">
+</head>
+<body class="noir" data-preview data-selected-count="2">
+
+  <!-- Board chrome: identity and the two numbers that matter. -->
+  <header class="topbar">
+    <div class="topbar-l">
+      <span class="mark" aria-hidden="true"></span>
+      <h1>لوحة التوصيل</h1>
+      <span class="sync">متصل بـ Intigo · 6 أسماء</span>
+    </div>
+    <dl class="figures">
+      <div><dt>الصافي</dt><dd>1 284 750</dd></div>
+      <div><dt>الرسوم</dt><dd>57 500</dd></div>
+      <div><dt>منخفض</dt><dd class="fig-neg">−27 750</dd></div>
+    </dl>
+    <div class="topbar-r">
+      <input type="search" placeholder="ابحث" aria-label="ابحث في اللوحة" />
+      <button class="ghost-btn" type="button">شركة جديدة</button>
+    </div>
+  </header>
+
+  <!-- The board. Height comes from the viewport, not the content. -->
+  <main class="board">
+
+    <section class="lane lane-live" data-tray data-tray-id="live">
+      <div class="lane-head">
+        <h2>قيد التنفيذ <span class="lane-count">3</span></h2>
+        <button class="pick-all" type="button" data-select-all data-select aria-checked="mixed" aria-label="تحديد كل الطلبات قيد التنفيذ">
+          <span data-state aria-hidden="true"></span>
+        </button>
+      </div>
+      <p class="lane-sum">القيمة 270 500 · الرسوم 21 000</p>
+      <ul class="lane-list">
+        <li class="kcard is-selected" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="true" aria-label="تحديد الطلب BC-311"><span data-state aria-hidden="true"></span></button>
+          <div class="kcard-top">
+            <span class="brand chip-balkis">بلقيس</span>
+            <span class="ref">BC-311</span>
+          </div>
+          <p class="kcard-name" data-row-name>Chemise en coton</p>
+          <p class="kcard-meta">تونس · 12 جويلية</p>
+          <p class="kcard-amt is-neg">−12 500</p>
+          <div class="kcard-tags">
+            <span class="tag tag-neg">مسترجع</span>
+            <span class="tag">سوسة</span>
+          </div>
+        </li>
+
+        <li class="kcard is-selected" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="true" aria-label="تحديد الطلب BC-313"><span data-state aria-hidden="true"></span></button>
+          <div class="kcard-top">
+            <span class="brand chip-balkis">بلقيس</span>
+            <span class="ref">BC-313</span>
+          </div>
+          <p class="kcard-name" data-row-name>Ceinture cuir</p>
+          <p class="kcard-meta">نابل · 14 جويلية</p>
+          <p class="kcard-amt is-pos">+3 000</p>
+          <div class="kcard-tags">
+            <span class="tag tag-warn">في الطريق</span>
+            <span class="tag">توقيع مطلوب</span>
+          </div>
+        </li>
+
+        <li class="kcard" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب CA-203"><span data-state aria-hidden="true"></span></button>
+          <div class="kcard-top">
+            <span class="brand chip-cakado">كاكادو</span>
+            <span class="ref">CA-203</span>
+          </div>
+          <p class="kcard-name" data-row-name>Étagère métal</p>
+          <p class="kcard-meta">بن عروس · 15 جويلية</p>
+          <p class="kcard-amt is-pos">+28 000</p>
+          <div class="kcard-tags">
+            <span class="tag tag-warn">في الطريق</span>
+            <span class="tag">ثقل</span>
+          </div>
+        </li>
+      </ul>
+      <div class="lane-foot">
+        <button class="lane-btn" type="button">تعيين إلى كاكادو</button>
+        <button class="lane-btn" type="button">تعيين إلى بلقيس</button>
+      </div>
+    </section>
+
+    <section class="lane lane-done" data-tray data-tray-id="delivered">
+      <div class="lane-head">
+        <h2>مُسلّم <span class="lane-count">3</span></h2>
+        <button class="pick-all" type="button" data-select-all data-select aria-checked="false" aria-label="تحديد كل الطلبات المُسلَّمة">
+          <span data-state aria-hidden="true"></span>
+        </button>
+      </div>
+      <p class="lane-sum">القيمة 384 000 · الرسوم 34 000</p>
+      <ul class="lane-list">
+        <li class="kcard" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب CA-201"><span data-state aria-hidden="true"></span></button>
+          <div class="kcard-top">
+            <span class="brand chip-cakado">كاكادو</span>
+            <span class="ref">CA-201</span>
+          </div>
+          <p class="kcard-name" data-row-name>Lampe bureau</p>
+          <p class="kcard-meta">أريانة · 09 جويلية</p>
+          <p class="kcard-amt is-pos">+45 000</p>
+          <div class="kcard-tags">
+            <span class="tag tag-ok">بتوقيع</span>
+          </div>
+        </li>
+
+        <li class="kcard" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب CA-202"><span data-state aria-hidden="true"></span></button>
+          <div class="kcard-top">
+            <span class="brand chip-cakado">كاكادو</span>
+            <span class="ref">CA-202</span>
+          </div>
+          <p class="kcard-name" data-row-name>Tapis berbère</p>
+          <p class="kcard-meta">صفاقس · 08 جويلية</p>
+          <p class="kcard-amt is-pos">+250 000</p>
+          <div class="kcard-tags">
+            <span class="tag tag-ok">بتوقيع</span>
+            <span class="tag tag-big">مراجعة مزدوجة</span>
+          </div>
+        </li>
+
+        <li class="kcard" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BA-102"><span data-state aria-hidden="true"></span></button>
+          <div class="kcard-top">
+            <span class="brand chip-balkis">بلقيس</span>
+            <span class="ref">BA-102</span>
+          </div>
+          <p class="kcard-name" data-row-name>Sac à main</p>
+          <p class="kcard-meta">القيروان · 07 جويلية</p>
+          <p class="kcard-amt is-pos">+88 999</p>
+          <div class="kcard-tags">
+            <span class="tag tag-ok">مُصفّى</span>
+          </div>
+        </li>
+      </ul>
+      <div class="lane-foot">
+        <button class="lane-btn" type="button">فتح الفواتير</button>
+      </div>
+    </section>
+
+    <section class="lane lane-closed" data-tray data-tray-id="closed">
+      <div class="lane-head">
+        <h2>مغلق <span class="lane-count">2</span></h2>
+        <button class="pick-all" type="button" data-select-all data-select aria-checked="false" aria-label="تحديد كل الطلبات المغلقة">
+          <span data-state aria-hidden="true"></span>
+        </button>
+      </div>
+      <p class="lane-sum">القيمة −15 250 · رسوم 2 500</p>
+      <ul class="lane-list">
+        <li class="kcard" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BA-101"><span data-state aria-hidden="true"></span></button>
+          <div class="kcard-top">
+            <span class="brand chip-balkis">بلقيس</span>
+            <span class="ref">BA-101</span>
+          </div>
+          <p class="kcard-name" data-row-name>Bijoux fantaisie</p>
+          <p class="kcard-meta">بنزرت · 06 جويلية</p>
+          <p class="kcard-amt is-neg">−15 250</p>
+          <div class="kcard-tags">
+            <span class="tag tag-info">تبادل</span>
+          </div>
+        </li>
+
+        <li class="kcard" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BC-312"><span data-state aria-hidden="true"></span></button>
+          <div class="kcard-top">
+            <span class="brand chip-balkis">بلقيس</span>
+            <span class="ref">BC-312</span>
+          </div>
+          <p class="kcard-name" data-row-name>Robe fleurie</p>
+          <p class="kcard-meta">سوسة · 05 جويلية</p>
+          <p class="kcard-amt is-void">—</p>
+          <div class="kcard-tags">
+            <span class="tag tag-void">ملغي</span>
+          </div>
+        </li>
+      </ul>
+      <div class="lane-foot">
+        <button class="lane-btn" type="button">استرجع إلى مفتوحة</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer row. Part of the grid, so it takes height when it appears. -->
+  <footer class="actionbar" data-selection-bar>
+    <p class="actionbar-count"><b data-count>2</b> محدَّد</p>
+    <ul class="actionbar-list" data-selected-list aria-label="الطلبات المحدَّدة"></ul>
+    <div class="actionbar-acts">
+      <button class="act" type="button">إلغاء</button>
+      <button class="act" type="button">غير مصنفة</button>
+      <button class="act act-on" type="button">كاكادو</button>
+      <button class="act act-on2" type="button">بلقيس</button>
+    </div>
+  </footer>
+
+  <nav class="switcher" aria-label="مبدّل التصاميم">
+    <span class="switcher-label">التصاميم</span>
+    <a href="/design-v1/">v1 · دفتر</a>
+    <a href="/design-v2/">v2 · طرفية</a>
+    <a href="/design-v3/">v3 · حجر رملي</a>
+    <a href="/design-v4/">v4 · رمادي فقي</a>
+    <a href="/design-v5/" aria-current="page">v5 · أسود</a>
+    <a href="/design/" class="switcher-all">كل التصاميم</a>
+    <a href="/" class="switcher-main">الصفحة الرئيسية</a>
+  </nav>
+
+  <script type="module" src="../design/preview.js"></script>
+</body>
+</html>

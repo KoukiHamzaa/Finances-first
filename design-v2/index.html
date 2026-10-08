@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تصميم 2 — طرفية · Design v2 Terminal</title>
+  <meta name="description" content="Design v2 Terminal — one dense console table with group separators, a command line and keyboard hints. No cards, no columns." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="./v2.css">
+</head>
+<body class="crt" data-preview data-selected-count="2">
+
+  <div class="scanlines" aria-hidden="true"></div>
+
+  <!-- Boot banner. Console furniture, not a masthead. -->
+  <header class="bar">
+    <div class="bar-row">
+      <span class="prompt">$</span>
+      <span class="bar-title">intigo-recon</span>
+      <span class="bar-dim">— v2.1.0</span>
+      <span class="bar-gap"></span>
+      <span class="bar-ok">● LINKED</span>
+      <span class="bar-dim">intigo api</span>
+      <span class="bar-gap"></span>
+      <span class="bar-dim">KEY</span>
+      <span class="bar-key">sk-live-9f42c1</span>
+    </div>
+    <div class="bar-row sub">
+      <span class="bar-dim">$</span>
+      <span>tail -f settlements.parquet</span>
+      <span class="bar-gap"></span>
+      <span class="bar-warn">! 3 rows with unconfirmed description</span>
+    </div>
+  </header>
+
+  <!-- The headline is a line of output, not a card. -->
+  <section class="readout">
+    <p class="readout-line"><span class="ok">net_revenue</span> <b>1 284 750.000</b> <span class="unit">DT</span> <span class="dim">as of 2026-10-04</span></p>
+    <p class="readout-line dim"><span class="ok">cakado</span> 842 300.000 &nbsp;·&nbsp; <span class="warn">balkis</span> 442 450.000 &nbsp;·&nbsp; <span>7</span> rows</p>
+  </section>
+
+  <!-- Filters are grep arguments on one line. -->
+  <section class="cmdline" aria-label="مرشّحات">
+    <span class="prompt">$</span>
+    <label class="grep">
+      <span class="visually-hidden">بحث</span>
+      <input type="search" placeholder="grep --pattern" aria-label="بحث في الطلبات" />
+    </label>
+    <div class="status-chips" role="group" aria-label="تصفية حسب الحالة">
+      <button class="chip is-on" type="button" aria-pressed="true">--all</button>
+      <button class="chip" type="button" aria-pressed="false">--delivered</button>
+      <button class="chip" type="button" aria-pressed="false">--returned</button>
+      <button class="chip" type="button" aria-pressed="false">--transit</button>
+      <button class="chip" type="button" aria-pressed="false">--void</button>
+      <button class="chip" type="button" aria-pressed="false">--error</button>
+    </div>
+    <span class="bar-gap"></span>
+    <label class="sortsel">
+      <span class="dim">--sort</span>
+      <select aria-label="ترتيب النتائج">
+        <option>default</option>
+        <option>amount.desc</option>
+        <option>wilaya</option>
+        <option>status</option>
+      </select>
+    </label>
+  </section>
+
+  <div class="selectionbar" data-selection-bar>
+    <p class="sel-line">
+      <span class="prompt">$</span>
+      <span class="ok">apply --to <b data-count>2</b> selected</span>
+      <span class="bar-gap"></span>
+      <span class="cmd">bulk-move --to unsorted</span>
+      <span class="cmd">assign --cakado</span>
+      <span class="cmd strong">assign --balkis</span>
+      <span class="cmd">clear</span>
+    </p>
+  </div>
+
+  <!-- ============ ONE table. Groups are separator rows inside it. ============ -->
+  <main class="console">
+    <table class="stream">
+      <thead>
+        <tr>
+          <th class="c-pick"><span class="visually-hidden">sel</span></th>
+          <th class="c-id">id</th>
+          <th class="c-desc">description</th>
+          <th class="c-wilaya">wilaya</th>
+          <th class="c-status">status</th>
+          <th class="c-fee">fee</th>
+        </tr>
+      </thead>
+
+      <tbody data-tray data-tray-id="unsorted">
+        <tr class="group">
+          <th colspan="6" scope="colgroup">
+            <button class="tally" type="button" data-select-all data-select aria-checked="mixed" aria-label="تحديد كل طلبات غير مصنفة">
+              <span data-state aria-hidden="true"></span>
+            </button>
+            <span class="group-name">unsorted</span>
+            <span class="group-meta">3 rows · sum −9 500.000</span>
+            <span class="group-bar" aria-hidden="true"></span>
+          </th>
+        </tr>
+        <tr class="row is-selected" data-row>
+          <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="true" aria-label="تحديد BC-311"><span data-state aria-hidden="true"></span></button></td>
+          <td class="c-id">BC-311</td>
+          <td class="c-desc"><span data-row-name>Chemise en coton</span></td>
+          <td class="c-wilaya">تونس</td>
+          <td class="c-status"><span class="st st-returned">returned</span></td>
+          <td class="c-fee"><span class="num is-neg">−12 500.000</span></td>
+        </tr>
+        <tr class="row" data-row>
+          <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد BC-312"><span data-state aria-hidden="true"></span></button></td>
+          <td class="c-id">BC-312</td>
+          <td class="c-desc"><span data-row-name>Robe fleurie</span></td>
+          <td class="c-wilaya">سوسة</td>
+          <td class="c-status"><span class="st st-void">void</span></td>
+          <td class="c-fee"><span class="num">—</span></td>
+        </tr>
+        <tr class="row is-selected" data-row>
+          <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="true" aria-label="تحديد BC-313"><span data-state aria-hidden="true"></span></button></td>
+          <td class="c-id">BC-313</td>
+          <td class="c-desc"><span data-row-name>Ceinture cuir</span></td>
+          <td class="c-wilaya">نابل</td>
+          <td class="c-status"><span class="st st-transit">transit</span></td>
+          <td class="c-fee"><span class="num is-pos">+3 000.000</span></td>
+        </tr>
+        <tr class="group-foot">
+          <td colspan="6">mv --to cakado &nbsp;·&nbsp; mv --to balkis</td>
+        </tr>
+      </tbody>
+
+      <tbody data-tray data-tray-id="cakado">
+        <tr class="group">
+          <th colspan="6" scope="colgroup">
+            <button class="tally" type="button" data-select-all data-select aria-checked="false" aria-label="تحديد كل طلبات كاكادو">
+              <span data-state aria-hidden="true"></span>
+            </button>
+            <span class="group-name">cakado</span>
+            <span class="group-meta">2 rows · sum 295 000.000 · fees 7.00/1.00/2.00</span>
+            <span class="group-bar" aria-hidden="true"></span>
+          </th>
+        </tr>
+        <tr class="row" data-row>
+          <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد CA-201"><span data-state aria-hidden="true"></span></button></td>
+          <td class="c-id">CA-201</td>
+          <td class="c-desc"><span data-row-name>Lampe bureau</span></td>
+          <td class="c-wilaya">أريانة</td>
+          <td class="c-status"><span class="st st-ok">delivered</span></td>
+          <td class="c-fee"><span class="num is-pos">+45 000.000</span></td>
+        </tr>
+        <tr class="row" data-row>
+          <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد CA-202"><span data-state aria-hidden="true"></span></button></td>
+          <td class="c-id">CA-202</td>
+          <td class="c-desc"><span data-row-name>Tapis berbère</span></td>
+          <td class="c-wilaya">صفاقس</td>
+          <td class="c-status"><span class="st st-ok">delivered</span></td>
+          <td class="c-fee"><span class="num is-pos">+250 000.000</span></td>
+        </tr>
+      </tbody>
+
+      <tbody data-tray data-tray-id="balkis">
+        <tr class="group">
+          <th colspan="6" scope="colgroup">
+            <button class="tally" type="button" data-select-all data-select aria-checked="false" aria-label="تحديد كل طلبات بلقيس">
+              <span data-state aria-hidden="true"></span>
+            </button>
+            <span class="group-name">balkis</span>
+            <span class="group-meta">2 rows · sum 73 749.000</span>
+            <span class="group-bar" aria-hidden="true"></span>
+          </th>
+        </tr>
+        <tr class="row" data-row>
+          <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد BA-101"><span data-state aria-hidden="true"></span></button></td>
+          <td class="c-id">BA-101</td>
+          <td class="c-desc"><span data-row-name>Bijoux fantaisie</span></td>
+          <td class="c-wilaya">بنزرت</td>
+          <td class="c-status"><span class="st st-swap">exchange</span></td>
+          <td class="c-fee"><span class="num is-neg">−15 250.000</span></td>
+        </tr>
+        <tr class="row" data-row>
+          <td class="c-pick"><button class="tick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد BA-102"><span data-state aria-hidden="true"></span></button></td>
+          <td class="c-id">BA-102</td>
+          <td class="c-desc"><span data-row-name>Sac à main</span></td>
+          <td class="c-wilaya">القيروان</td>
+          <td class="c-status"><span class="st st-ok">delivered</span></td>
+          <td class="c-fee"><span class="num is-pos">+88 999.000</span></td>
+        </tr>
+        <tr class="group-foot">
+          <td colspan="6">
+            <label class="fees-inline">fees --delivery <input type="number" value="7.00" step="0.001" dir="ltr" /></label>
+            <label class="fees-inline">--return <input type="number" value="5.50" step="0.001" dir="ltr" /></label>
+          </td>
+        </tr>
+      </tbody>
+
+      <tfoot>
+        <tr class="foot">
+          <td colspan="5">total 7 rows</td>
+          <td class="c-fee"><span class="num is-pos">1 284 750.000</span></td>
+        </tr>
+      </tfoot>
+    </table>
+  </main>
+
+  <!-- The command line is always present: this is a keyboard-first design. -->
+  <div class="cmdbar">
+    <span class="prompt">$</span>
+    <input type="text" class="cmd-input" placeholder="أمر…" aria-label="سطر الأوامر" dir="ltr" />
+    <span class="hints">
+      <kbd>↑↓</kbd> row
+      <kbd>Space</kbd> select
+      <kbd>a</kbd> group
+      <kbd>m</kbd> move
+      <kbd>Esc</kbd> clear
+    </span>
+  </div>
+
+  <nav class="switcher" aria-label="مبدّل التصاميم">
+    <span class="switcher-label">التصاميم</span>
+    <a href="/design-v1/">v1 · دفتر</a>
+    <a href="/design-v2/" aria-current="page">v2 · طرفية</a>
+    <a href="/design-v3/">v3 · حجر رملي</a>
+    <a href="/design-v4/">v4 · رمادي فقي</a>
+    <a href="/design-v5/">v5 · أسود</a>
+    <a href="/design/" class="switcher-all">كل التصاميم</a>
+    <a href="/" class="switcher-main">الصفحة الرئيسية</a>
+  </nav>
+
+  <script type="module" src="../design/preview.js"></script>
+</body>
+</html>

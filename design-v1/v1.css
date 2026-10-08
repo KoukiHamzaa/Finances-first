@@ -1,0 +1,530 @@
+/*
+ * design-v1 · Ledger
+ *
+ * FORM: a printed statement. One narrow reading column. Real <table> sections
+ * stacked vertically in reading order, each with its own subtotal. There are no
+ * cards and nothing sits side by side — the page is a document.
+ *
+ * Word-cloner style is deliberately rejected here: depth comes from hairline
+ * rules and typography, corners are 2px, and every figure is monospace with
+ * tabular numerals so the columns line up the way they would in print.
+ */
+
+:root {
+  --paper: #f6f2e9;
+  --leaf: #fffdf8;
+  --paper-deep: #efe9dc;
+  --rule: #ddd4c0;
+  --rule-strong: #c3b69c;
+
+  --ink: #1c1814;
+  --ink-soft: #5d554a;
+  --ink-faint: #8b8172;
+
+  --brass: #96692c;
+  --brass-deep: #7d5522;
+  --wax: #a1372e;
+  --verd: #2f6b4f;
+  --amber: #9a6a12;
+
+  --type-serif: 'Amiri', 'Times New Roman', serif;
+  --type-text: 'IBM Plex Sans Arabic', 'Segoe UI', sans-serif;
+  --type-num: 'IBM Plex Mono', ui-monospace, monospace;
+
+  --hair: 1px solid var(--rule);
+  --measure: 62rem;   /* the reading column. Never a full-bleed table. */
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  padding: 0 0 5rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--type-text);
+  font-size: 16px;
+  line-height: 1.7;
+  background-image:
+    radial-gradient(circle at 20% 8%, rgba(150, 105, 44, .05), transparent 45%),
+    radial-gradient(circle at 80% 82%, rgba(150, 105, 44, .035), transparent 40%);
+  background-attachment: fixed;
+}
+
+/* The bound edge of the book. */
+.edge-rule {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: var(--rule);
+  border-inline-end: 1px solid var(--paper-deep);
+  z-index: 1;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+:where(a, button, input, select, textarea, [tabindex]):focus:not(:focus-visible) { outline: none; }
+
+/* ------------------------------------------------------------ letterhead */
+
+.letterhead { position: relative; z-index: 2; background: var(--leaf); border-bottom: 3px double var(--rule-strong); }
+
+.letterhead-inner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 1.4rem 2rem 1.2rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.crest { display: flex; align-items: center; gap: .85rem; }
+
+/* A wax seal, not a rounded logo tile. */
+.seal {
+  display: grid;
+  place-items: center;
+  inline-size: 2.9rem;
+  block-size: 2.9rem;
+  border: 2px solid var(--wax);
+  border-radius: 50%;
+  color: var(--wax);
+  font-family: var(--type-serif);
+  font-size: 1.35rem;
+  line-height: 1;
+  padding-bottom: .12rem;
+}
+
+.crest-text { display: flex; flex-direction: column; line-height: 1.25; }
+.crest-text strong { font-family: var(--type-serif); font-size: 1.5rem; font-weight: 700; }
+.crest-text small { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
+
+.letterhead-meta { margin: 0; display: flex; gap: 1.75rem; flex-wrap: wrap; }
+.letterhead-meta > div { display: flex; flex-direction: column; line-height: 1.3; }
+.letterhead-meta dt { font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); }
+.letterhead-meta dd {
+  margin: 0;
+  font-family: var(--type-num);
+  font-size: .85rem;
+  font-weight: 600;
+}
+.letterhead-meta dd.ok { color: var(--verd); }
+
+/* ---------------------------------------------------------- statement head */
+
+.statement-head { border-bottom: var(--hair); background: var(--leaf); }
+.statement-head-inner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 2rem 2rem 1.6rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.statement-head h1 {
+  margin: 0;
+  font-family: var(--type-serif);
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.statement-head .sub { margin: .3rem 0 0; font-size: .85rem; color: var(--ink-faint); }
+
+.net { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+.net span { font-size: .7rem; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-faint); }
+.net strong {
+  font-family: var(--type-num);
+  font-size: 2.2rem;
+  font-weight: 600;
+}
+.net small { font-family: var(--type-text); font-size: .8rem; font-weight: 500; color: var(--ink-soft); margin-inline-start: .3rem; }
+
+/* ---------------------------------------------------------- control strip */
+
+.control-strip {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--paper-deep);
+  border-bottom: var(--hair);
+}
+.control-strip-inner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: .8rem 2rem .7rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: .7rem 1rem;
+  align-items: end;
+}
+.field { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+.field > span { font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
+.field.grow { grid-column: span 2; }
+.field input, .field select {
+  font: inherit;
+  font-size: .85rem;
+  padding: .45rem .6rem;
+  background: var(--leaf);
+  border: var(--hair);
+  border-radius: 2px;
+  color: var(--ink);
+  inline-size: 100%;
+  min-width: 0;
+}
+.field input[type='password'], .field input[type='search'] { font-family: var(--type-num); letter-spacing: .06em; }
+
+.strip-actions { display: flex; gap: .5rem; }
+
+.status-chips {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 0 2rem .7rem;
+  display: flex;
+  gap: .3rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  padding: .45rem .85rem;
+  min-block-size: 2.5rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  background: var(--leaf);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+.btn:hover { border-color: var(--brass); color: var(--brass-deep); background: var(--paper); }
+.btn.strong { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.btn.strong:hover { background: #322a22; border-color: #322a22; color: var(--paper); }
+.btn.small { font-size: .75rem; padding: .3rem .65rem; min-block-size: 2.1rem; }
+
+.chip {
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 600;
+  padding: .35rem .7rem;
+  min-block-size: 2.25rem;
+  border: var(--hair);
+  border-radius: 2px;
+  background: var(--leaf);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--rule-strong); color: var(--ink); }
+.chip.is-on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+
+/* ---------------------------------------------------------- selectionbar */
+
+.selectionbar { background: var(--ink); color: var(--paper); }
+.selectionbar[hidden] { display: none; }
+.selectionbar-inner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: .6rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.selectionbar-count { margin: 0; font-size: .88rem; }
+.selectionbar-count b { font-family: var(--type-num); font-size: 1.1rem; margin-inline-end: .3rem; }
+.selectionbar-acts { display: flex; gap: .45rem; flex-wrap: wrap; }
+.selectionbar .btn { background: none; border-color: rgba(246, 242, 233, .35); color: var(--paper); }
+.selectionbar .btn:hover { background: rgba(246, 242, 233, .12); border-color: var(--paper); color: var(--paper); }
+.selectionbar .btn.strong { background: var(--brass); border-color: var(--brass); color: #fffdf8; }
+
+/* -------------------------------------------------------------- document */
+
+.statement { max-width: var(--measure); margin: 0 auto; padding: 1.5rem 2rem 0; }
+
+.section-label {
+  margin: 0 0 .5rem;
+  font-size: .68rem;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 700;
+}
+
+/* Ruled summary: two lines of label/value, not two cards. */
+.summary { border-top: var(--hair); padding-top: 1rem; margin-bottom: 1.5rem; }
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 0 2.5rem; }
+.summary-block { margin: 0; padding-bottom: .6rem; border-bottom: var(--hair); }
+.summary-block dt {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  font-family: var(--type-serif);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.summary-block dt small { font-family: var(--type-text); font-size: .64rem; font-weight: 600; letter-spacing: .18em; color: var(--ink-faint); }
+.summary-block .figure {
+  margin: .1rem 0 .3rem;
+  font-family: var(--type-num);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+.summary-block .split { display: flex; gap: 1.25rem; flex-wrap: wrap; margin: 0; font-size: .78rem; color: var(--ink-faint); }
+.summary-block .split b { font-family: var(--type-num); color: var(--ink-soft); margin-inline-start: .2rem; }
+
+.note {
+  margin: 0 0 .6rem;
+  padding: .5rem .8rem;
+  border-inline-start: 3px solid var(--rule-strong);
+  background: var(--leaf);
+  font-size: .85rem;
+}
+.note b { color: var(--brass-deep); }
+.note.warn { border-inline-start-color: var(--amber); }
+.note.warn b { color: var(--amber); }
+
+/* -------------------------------------------------------- ledger sections */
+
+.ledger-section { margin-top: 2rem; }
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  padding-bottom: .45rem;
+  border-bottom: 2px solid var(--ink);
+  margin-bottom: 0;
+}
+.section-head h2 {
+  margin: 0;
+  font-family: var(--type-serif);
+  font-size: 1.3rem;
+  font-weight: 700;
+  flex: 1;
+  min-width: 0;
+}
+.section-tally {
+  margin: 0;
+  font-size: .78rem;
+  color: var(--ink-faint);
+  font-family: var(--type-num);
+  white-space: nowrap;
+}
+.section-tally b { color: var(--ink-soft); }
+
+.tally, .tick {
+  appearance: none;
+  font: inherit;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  background: var(--leaf);
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  flex: none;
+}
+.tally { inline-size: 1.3rem; block-size: 1.3rem; }
+.tick { inline-size: 1.05rem; block-size: 1.05rem; }
+.tally span, .tick span { inline-size: .6rem; block-size: .6rem; border: 1px solid var(--rule-strong); border-radius: 1px; }
+.tally:hover, .tick:hover { border-color: var(--brass); }
+.tally[aria-checked='true'], .tick[aria-checked='true'] { background: var(--brass); border-color: var(--brass); }
+.tally[aria-checked='true'] span, .tick[aria-checked='true'] span { background: var(--leaf); border-color: var(--leaf); }
+/* Partial = a dash. Never a half box. */
+.tally[data-mixed] span { background: var(--brass); border-color: var(--brass); block-size: 2px; }
+
+/* A real table, so column alignment is the browser's job. */
+.ledger {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: .9rem;
+  table-layout: fixed;
+}
+.ledger th {
+  text-align: start;
+  font-size: .64rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 700;
+  padding: .45rem .5rem;
+  border-bottom: var(--hair);
+}
+.ledger td { padding: .55rem .5rem; border-bottom: var(--hair); vertical-align: middle; }
+.ledger tbody .row:hover { background: var(--leaf); }
+.ledger tbody .row.is-selected { background: #fbf4e6; box-shadow: inset 0 -2px 0 var(--brass); }
+
+.c-pick { inline-size: 2.25rem; }
+.c-status { inline-size: 7rem; }
+.c-amount { inline-size: 7.5rem; text-align: end; }
+.c-wilaya { inline-size: 6rem; color: var(--ink-soft); }
+
+.c-desc { min-width: 0; }
+.row-name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-meta { display: block; font-family: var(--type-num); font-size: .7rem; color: var(--ink-faint); }
+
+.amount {
+  font-family: var(--type-num);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  color: var(--ink-faint);
+}
+.amount.is-pos { color: var(--verd); }
+.amount.is-neg { color: var(--wax); }
+
+.tag {
+  display: inline-block;
+  font-size: .68rem;
+  font-weight: 700;
+  padding: .15rem .4rem;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+.tag-ok { color: var(--verd); background: rgba(47, 107, 79, .07); }
+.tag-returned { color: var(--wax); background: rgba(161, 55, 46, .07); }
+.tag-void { color: var(--ink-faint); background: var(--paper-deep); text-decoration: line-through; }
+.tag-swap { color: var(--amber); background: rgba(154, 106, 18, .09); }
+.tag-live { color: var(--brass-deep); background: rgba(150, 105, 44, .09); }
+
+.ledger tfoot td {
+  border-bottom: 0;
+  border-top: 2px solid var(--ink);
+  padding-top: .5rem;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-align: end;
+}
+.ledger tfoot .amount { margin-inline-start: .5rem; color: var(--ink); }
+
+.section-moves { display: flex; gap: .4rem; padding: .5rem 0 0; }
+
+/* Fees sit under the table as a footnote, like terms on a statement. */
+.fees {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: .5rem;
+  padding: .5rem .7rem;
+  background: var(--paper-deep);
+  border: var(--hair);
+  border-radius: 2px;
+  font-size: .8rem;
+}
+.fees-label { font-size: .64rem; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+.fees-locked { font-family: var(--type-num); color: var(--ink-soft); }
+.fees-field { display: flex; align-items: center; gap: .4rem; }
+.fees-field span { font-size: .78rem; color: var(--ink-soft); }
+.fees-field input {
+  font: inherit;
+  font-family: var(--type-num);
+  font-size: .8rem;
+  inline-size: 5.5rem;
+  min-width: 0;
+  padding: .3rem .4rem;
+  background: var(--leaf);
+  border: var(--hair);
+  border-radius: 2px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------ grand total */
+
+.grand-total { margin-top: 2.5rem; border-top: var(--hair); }
+.grand-total p {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  padding: .5rem .2rem;
+  border-bottom: var(--hair);
+  font-size: .9rem;
+  color: var(--ink-soft);
+}
+.grand-total b { font-family: var(--type-num); font-size: 1rem; font-weight: 600; color: var(--ink); }
+.grand-total .rule-double {
+  border-bottom: 3px double var(--rule-strong);
+  padding-top: .7rem;
+}
+.grand-total .rule-double b { font-size: 1.5rem; color: var(--brass-deep); }
+
+/* -------------------------------------------------------------- switcher */
+
+.switcher {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  flex-wrap: wrap;
+  padding: .6rem 1rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: .78rem;
+}
+.switcher-label { font-size: .64rem; letter-spacing: .18em; text-transform: uppercase; color: rgba(246, 242, 233, .55); margin-inline-end: .4rem; }
+.switcher a { color: rgba(246, 242, 233, .78); text-decoration: none; padding: .3rem .6rem; border: 1px solid rgba(246, 242, 233, .22); border-radius: 2px; }
+.switcher a:hover { border-color: var(--paper); color: var(--paper); }
+.switcher a[aria-current='page'] { background: var(--brass); border-color: var(--brass); color: #fffdf8; }
+.switcher-all, .switcher-main { border-style: dashed !important; }
+
+/* ------------------------------------------------------------ responsive */
+
+@media (max-width: 900px) {
+  .letterhead-inner, .statement-head-inner, .control-strip-inner,
+  .status-chips, .selectionbar-inner, .statement { padding-inline: 1.25rem; }
+  .field.grow { grid-column: span 1; }
+  .statement-head h1 { font-size: 1.9rem; }
+  .net strong { font-size: 1.75rem; }
+  .net, .headline-figure { align-items: flex-start; }
+}
+
+/* The table never scrolls sideways: drop the least critical column instead. */
+@media (max-width: 620px) {
+  .ledger .c-wilaya { display: none; }
+  .ledger { font-size: .85rem; }
+  .c-status { inline-size: 5.5rem; }
+  .c-amount { inline-size: 6rem; }
+  .letterhead-meta { gap: 1rem; }
+  .strip-actions { flex-wrap: wrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+@media print {
+  .control-strip, .selectionbar, .switcher, .edge-rule { display: none !important; }
+  body { background: #fff; }
+  .ledger-section { break-inside: avoid; }
+}

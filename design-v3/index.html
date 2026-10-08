@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>تصميم 3 — حجر رملي · Design v3 Sandstone</title>
+  <meta name="description" content="Design v3 Sandstone — one card per row in a single scrolling column, a tray tab strip, and a permanent bottom action bar. Mobile first." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;500;700;800&family=Outfit:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;500;700;800&family=Outfit:wght@400;500;600;700&display=swap"></noscript>
+  <link rel="stylesheet" href="./v3.css">
+</head>
+<body class="sand" data-preview data-selected-count="2">
+
+  <!-- App bar. Deliberately small: the cards are the interface. -->
+  <header class="appbar">
+    <div class="appbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">ت</span>
+        <span class="brand-text">
+          <strong>دفتر التوصيل</strong>
+          <small>Intigo · متصل</small>
+        </span>
+      </div>
+      <div class="appbar-net">
+        <small>صافي الإيرادات</small>
+        <strong>1 284 750<em>د.ت</em></strong>
+      </div>
+    </div>
+  </header>
+
+  <!-- Search + filters. One column, generous. -->
+  <section class="controls">
+    <label class="search">
+      <span class="visually-hidden">بحث في الطلبات</span>
+      <input type="search" placeholder="ابحث بالاسم أو الولاية أو الرمز" aria-label="بحث في الطلبات" />
+    </label>
+    <div class="seg" role="group" aria-label="تصفية حسب الحالة">
+      <button class="seg-btn is-on" type="button" aria-pressed="true">الكل</button>
+      <button class="seg-btn" type="button" aria-pressed="false">مُسلّم</button>
+      <button class="seg-btn" type="button" aria-pressed="false">مسترجع</button>
+      <button class="seg-btn" type="button" aria-pressed="false">قيد التنفيذ</button>
+      <button class="seg-btn" type="button" aria-pressed="false">ملغي</button>
+    </div>
+    <div class="controls-row">
+      <label class="mini">
+        <span>الترتيب</span>
+        <select aria-label="ترتيب النتائج">
+          <option>الترتيب الافتراضي</option>
+          <option>السعر (الأعلى)</option>
+          <option>الولاية</option>
+        </select>
+      </label>
+      <button class="mini-btn" type="button">شركة جديدة</button>
+      <button class="mini-btn" type="button">مسح الذاكرة</button>
+    </div>
+  </section>
+
+  <!-- Two brand summaries as a calm pair of figures, not cards in a grid. -->
+  <section class="pair" aria-label="ملخّص العلامات">
+    <div class="pair-item">
+      <span class="pair-label">كاكادو</span>
+      <strong class="pair-figure">842 300<em>د.ت</em></strong>
+      <span class="pair-split">مُسلّم 128 · مسترجع 14 · رسوم 7,00</span>
+    </div>
+    <div class="pair-item">
+      <span class="pair-label">بلقيس</span>
+      <strong class="pair-figure">442 450<em>د.ت</em></strong>
+      <span class="pair-split">مُسلّم 71 · مسترجع 9 · رسوم 5,50</span>
+    </div>
+  </section>
+
+  <p class="banner banner-info">تم جلب 6 أسماء من Intigo بنجاح. الطلبات المتبقية قيد المعالجة.</p>
+  <p class="banner banner-warn">3 طلبات تحمل وصفاً افتراضياً غير مؤكّد — راجعها قبل الفوترة.</p>
+
+  <!-- Tray tabs. This variant shows ONE tray at a time. -->
+  <nav class="tabs" data-tabs aria-label="صناديق الطلبات">
+    <button class="tab is-on" type="button" data-tab="unsorted" aria-selected="true" role="tab">
+      غير مصنفة <span class="tab-count">3</span>
+    </button>
+    <button class="tab" type="button" data-tab="cakado" aria-selected="false" role="tab">
+      كاكادو <span class="tab-count">2</span>
+    </button>
+    <button class="tab" type="button" data-tab="balkis" aria-selected="false" role="tab">
+      بلقيس <span class="tab-count">2</span>
+    </button>
+  </nav>
+
+  <main class="flow">
+
+    <section class="tray" data-tray data-tray-id="unsorted">
+      <div class="tray-bar">
+        <button class="pick-all" type="button" data-select-all data-select aria-checked="mixed" aria-label="تحديد كل طلبات غير مصنفة">
+          <span data-state aria-hidden="true"></span>
+          <b>تحديد الكل</b>
+        </button>
+        <span class="tray-sum">3 طلبات · <b>−9 500</b></span>
+        <span class="tray-actions">
+          <button class="link-btn" type="button">← كاكادو</button>
+          <button class="link-btn" type="button">← بلقيس</button>
+        </span>
+      </div>
+
+      <ul class="cards">
+        <li class="card is-selected" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="true" aria-label="تحديد الطلب BC-311">
+            <span data-state aria-hidden="true"></span>
+          </button>
+          <div class="card-main">
+            <p class="card-name" data-row-name>Chemise en coton</p>
+            <p class="card-meta">BC-311 · تونس</p>
+          </div>
+          <div class="card-side">
+            <span class="pill pill-returned">مسترجع</span>
+            <span class="fee is-neg">−12 500</span>
+          </div>
+        </li>
+
+        <li class="card" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BC-312">
+            <span data-state aria-hidden="true"></span>
+          </button>
+          <div class="card-main">
+            <p class="card-name" data-row-name>Robe fleurie</p>
+            <p class="card-meta">BC-312 · سوسة</p>
+          </div>
+          <div class="card-side">
+            <span class="pill pill-void">ملغي</span>
+            <span class="fee">—</span>
+          </div>
+        </li>
+
+        <li class="card is-selected" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="true" aria-label="تحديد الطلب BC-313">
+            <span data-state aria-hidden="true"></span>
+          </button>
+          <div class="card-main">
+            <p class="card-name" data-row-name>Ceinture cuir</p>
+            <p class="card-meta">BC-313 · نابل</p>
+          </div>
+          <div class="card-side">
+            <span class="pill pill-live">قيد التنفيذ</span>
+            <span class="fee is-pos">+3 000</span>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="tray" data-tray data-tray-id="cakado" hidden>
+      <div class="tray-bar">
+        <button class="pick-all" type="button" data-select-all data-select aria-checked="false" aria-label="تحديد كل طلبات كاكادو">
+          <span data-state aria-hidden="true"></span>
+          <b>تحديد الكل</b>
+        </button>
+        <span class="tray-sum">2 طلبان · <b>295 000</b></span>
+        <span class="tray-actions">
+          <button class="link-btn" type="button">الرسوم 7,00 / 1,00 / 2,00</button>
+        </span>
+      </div>
+
+      <ul class="cards">
+        <li class="card" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب CA-201">
+            <span data-state aria-hidden="true"></span>
+          </button>
+          <div class="card-main">
+            <p class="card-name" data-row-name>Lampe bureau</p>
+            <p class="card-meta">CA-201 · أريانة</p>
+          </div>
+          <div class="card-side">
+            <span class="pill pill-ok">مُسلّم</span>
+            <span class="fee is-pos">+45 000</span>
+          </div>
+        </li>
+
+        <li class="card" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب CA-202">
+            <span data-state aria-hidden="true"></span>
+          </button>
+          <div class="card-main">
+            <p class="card-name" data-row-name>Tapis berbère</p>
+            <p class="card-meta">CA-202 · صفاقس</p>
+          </div>
+          <div class="card-side">
+            <span class="pill pill-ok">مُسلّم</span>
+            <span class="fee is-pos">+250 000</span>
+          </div>
+        </li>
+      </ul>
+
+      <div class="fees">
+        <span class="fees-label">الرسوم</span>
+        <label class="fees-field"><span>توصيل</span><input type="number" value="7.00" step="0.001" dir="ltr" /></label>
+        <label class="fees-field"><span>إرجاع</span><input type="number" value="5.50" step="0.001" dir="ltr" /></label>
+      </div>
+    </section>
+
+    <section class="tray" data-tray data-tray-id="balkis" hidden>
+      <div class="tray-bar">
+        <button class="pick-all" type="button" data-select-all data-select aria-checked="false" aria-label="تحديد كل طلبات بلقيس">
+          <span data-state aria-hidden="true"></span>
+          <b>تحديد الكل</b>
+        </button>
+        <span class="tray-sum">2 طلبان · <b>73 749</b></span>
+      </div>
+
+      <ul class="cards">
+        <li class="card" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BA-101">
+            <span data-state aria-hidden="true"></span>
+          </button>
+          <div class="card-main">
+            <p class="card-name" data-row-name>Bijoux fantaisie</p>
+            <p class="card-meta">BA-101 · بنزرت</p>
+          </div>
+          <div class="card-side">
+            <span class="pill pill-swap">تبادل</span>
+            <span class="fee is-neg">−15 250</span>
+          </div>
+        </li>
+
+        <li class="card" data-row>
+          <button class="pick" type="button" data-select data-row-toggle aria-checked="false" aria-label="تحديد الطلب BA-102">
+            <span data-state aria-hidden="true"></span>
+          </button>
+          <div class="card-main">
+            <p class="card-name" data-row-name>Sac à main</p>
+            <p class="card-meta">BA-102 · القيروان</p>
+          </div>
+          <div class="card-side">
+            <span class="pill pill-ok">مُسلّم</span>
+            <span class="fee is-pos">+88 999</span>
+          </div>
+        </li>
+      </ul>
+
+      <div class="fees">
+        <span class="fees-label">الرسوم</span>
+        <label class="fees-field"><span>توصيل</span><input type="number" value="7.00" step="0.001" dir="ltr" /></label>
+        <label class="fees-field"><span>إرجاع</span><input type="number" value="5.50" step="0.001" dir="ltr" /></label>
+      </div>
+    </section>
+  </main>
+
+  <!-- The action bar is always there. It never appears and disappears. -->
+  <div class="actionbar" data-selection-bar>
+    <p class="actionbar-count"><b data-count>2</b> محدَّد</p>
+    <div class="actionbar-acts">
+      <button class="act act-ghost" type="button">إلغاء</button>
+      <button class="act" type="button">غير مصنفة</button>
+      <button class="act act-primary" type="button">كاكادو</button>
+      <button class="act act-dark" type="button">بلقيس</button>
+    </div>
+  </div>
+
+  <nav class="switcher" aria-label="مبدّل التصاميم">
+    <span class="switcher-label">التصاميم</span>
+    <a href="/design-v1/">v1 · دفتر</a>
+    <a href="/design-v2/">v2 · طرفية</a>
+    <a href="/design-v3/" aria-current="page">v3 · حجر رملي</a>
+    <a href="/design-v4/">v4 · رمادي فقي</a>
+    <a href="/design-v5/">v5 · أسود</a>
+    <a href="/design/" class="switcher-all">كل التصاميم</a>
+    <a href="/" class="switcher-main">الصفحة الرئيسية</a>
+  </nav>
+
+  <script type="module" src="../design/preview.js"></script>
+</body>
+</html>
