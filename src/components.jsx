@@ -9,7 +9,7 @@ import { Progress } from './components/ui/progress.jsx';
 
 export const supportsHoverDrag = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)').matches : false;
 
-export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart, zone, onMoveDirect, onRetry, i = 0 }) => {
+export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDragStart, zone, onMoveDirect, onRetry, onToggleStatus, i = 0 }) => {
 
                 const govInfo = resolveGov(row.city);
                 
@@ -94,9 +94,20 @@ export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDrag
                         </div>
                         <div className="flex justify-between items-center mt-1">
                           <div className="flex items-center gap-2">
-                            <Badge variant={pill.variant} className={`text-[11px] ${pill.className || ''}`} title={row.originalStatusText}>
-                              {pill.label} {row.status === 'in_progress' && '⚠'}
-                            </Badge>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onToggleStatus) onToggleStatus(row);
+                              }}
+                              className="cursor-pointer hover:opacity-85 transition-opacity focus:outline-none"
+                              title="انقر لتبديل الحالة بين مُسلّم ومسترجع"
+                              aria-label={`تبديل حالة الطلب ${row.productName || row.id}`}
+                            >
+                              <Badge variant={pill.variant} className={`text-[11px] ${pill.className || ''}`} title={row.originalStatusText}>
+                                {pill.label} {row.status === 'in_progress' && '⚠'} ⇄
+                              </Badge>
+                            </button>
                             {row.hasError && (
                               <Button variant="link" size="sm" onClick={(e) => onRetry(e, row)} className="text-[11px] min-h-[44px] px-2">
                                 ⚠ إعادة المحاولة
@@ -118,8 +129,16 @@ export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDrag
                                 <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'cakado'); }} className="text-[11px] rounded-full min-h-[44px]">→ كاكادو</Button>
                                 <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'balkis'); }} className="text-[11px] rounded-full min-h-[44px]">→ بلقيس</Button>
                               </React.Fragment>
+                            ) : zone === 'cakado' ? (
+                              <React.Fragment>
+                                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'balkis'); }} className="text-[11px] rounded-full min-h-[44px]">→ بلقيس</Button>
+                                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'master'); }} className="text-[11px] rounded-full min-h-[44px]">↩ إلغاء</Button>
+                              </React.Fragment>
                             ) : (
-                              <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'master'); }} className="text-[11px] rounded-full min-h-[44px]">↩ إلغاء</Button>
+                              <React.Fragment>
+                                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'cakado'); }} className="text-[11px] rounded-full min-h-[44px]">→ كاكادو</Button>
+                                <Button variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); onMoveDirect(row, 'master'); }} className="text-[11px] rounded-full min-h-[44px]">↩ إلغاء</Button>
+                              </React.Fragment>
                             )}
                           </div>
                         </div>
@@ -195,7 +214,7 @@ export const AnimatedNumber = React.memo(({ value }) => {
 
 const PAGE_SIZE = 20;
 
-export const ZoneTable = React.memo(({ rows, title, zone, selectable = false, accentColor = '', selectedIds, onToggleSelectAll, onDrop, onToggleSelect, onDragStart, onMoveDirect, onRetry }) => {
+export const ZoneTable = React.memo(({ rows, title, zone, selectable = false, accentColor = '', selectedIds, onToggleSelectAll, onDrop, onToggleSelect, onDragStart, onMoveDirect, onRetry, onToggleStatus }) => {
         const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
         // The set of rows changes identity on every enrichment batch, so paging
@@ -325,6 +344,7 @@ const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } 
     zone={zone}
     onMoveDirect={onMoveDirect}
     onRetry={onRetry}
+    onToggleStatus={onToggleStatus}
     i={index}
   />
 ))}

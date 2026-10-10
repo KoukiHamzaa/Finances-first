@@ -435,20 +435,46 @@ export function parsePaymentReceipt(rows) {
   };
 
   const summary = {};
-  rows.slice(headerIdx + 1).forEach(row => {
+  const explicitRows = [];
+  const dataRows = rows.slice(headerIdx + 1);
+
+  dataRows.forEach((row, idx) => {
     if (!row || row[descIdx] == null) return;
+    const rawDesc = String(row[descIdx]).trim();
+    if (!rawDesc) return;
+
     // Strip accents so É→E, À→A, etc. before matching
-    const norm = String(row[descIdx])
+    const norm = rawDesc
       .normalize('NFKD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
       .trim();
     const summaryKey = KEY_MAP[norm];
-    if (!summaryKey) return;
-    summary[summaryKey] = parseMoney(row[montantIdx]).value;
-    const countKey = COUNT_MAP[norm];
-    if (countKey && row[quantiteIdx] != null && row[quantiteIdx] !== '') {
-      summary[countKey] = Number(row[quantiteIdx]) || 0;
+    if (summaryKey) {
+      summary[summaryKey] = parseMoney(row[montantIdx]).value;
+      const countKey = COUNT_MAP[norm];
+      if (countKey && row[quantiteIdx] != null && row[quantiteIdx] !== '') {
+        summary[countKey] = Number(row[quantiteIdx]) || 0;
+      }
+    } else {
+      const money = parseMoney(row[montantIdx]);
+      const barcode = String(row[0] ?? '').trim();
+      const isRet = norm.includes('retour');
+      const st = isRet ? 'returned' : 'delivered';
+      explicitRows.push({
+        id: crypto.randomUUID(),
+        barcode: barcode || `REC-${idx + 1}`,
+        productName: rawDesc,
+        phone: '',
+        price: money.value,
+        totalSales: st === 'delivered' ? money.value : 0,
+        status: st,
+        carrier_fee: null,
+        rule_fee: 0,
+        fee_delta: null,
+        moneyParseError: money.bad,
+        city: '',
+      });
     }
   });
 
@@ -462,8 +488,92 @@ export function parsePaymentReceipt(rows) {
     ? round3((summary.returnFees || 0) / retCount)
     : 0;
 
+  let parsed = [];
+  if (explicitRows.length > 0) {
+    parsed = explicitRows;
+  } else {
+    // Generate order rows from summary aggregates so user can inspect,
+    // classify and assign them across Cakado & Balkis
+    const totalCod = summary.cod || 0;
+    const baseSalePerDelivery = delCount > 0 ? round3(totalCod / delCount) : 0;
+
+    for (let i = 1; i <= delCount; i++) {
+      const isLast = (i === delCount);
+      const saleVal = isLast
+        ? round3(totalCod - baseSalePerDelivery * (delCount - 1))
+        : baseSalePerDelivery;
+      parsed.push({
+        id: crypto.randomUUID(),
+        barcode: `REC-DEL-${String(i).padStart(3, '0')}`,
+        productName: `طرد مسلّم #${i}`,
+        phone: '',
+        price: saleVal,
+        totalSales: saleVal,
+        status: 'delivered',
+        carrier_fee: feePerDelivery || null,
+        rule_fee: feePerDelivery || 0,
+        fee_delta: 0,
+        moneyParseError: false,
+        city: '',
+      });
+    }
+
+    for (let j = 1; j <= retCount; j++) {
+      parsed.push({
+        id: crypto.randomUUID(),
+        barcode: `REC-RET-${String(j).padStart(3, '0')}`,
+        productName: `طرد مسترجع #${j}`,
+        phone: '',
+        price: 0,
+        totalSales: 0,
+        status: 'returned',
+        carrier_fee: feePerReturn || null,
+        rule_fee: feePerReturn || 0,
+        fee_delta: 0,
+        moneyParseError: false,
+        city: '',
+      });
+    }
+
+    const exchCount = summary.exchangeCount || 0;
+    const feePerExchange = exchCount > 0 ? round3((summary.exchangeFees || 0) / exchCount) : 0;
+    for (let k = 1; k <= exchCount; k++) {
+      parsed.push({
+        id: crypto.randomUUID(),
+        barcode: `REC-ECH-${String(k).padStart(3, '0')}`,
+        productName: `طرد تبادل #${k}`,
+        phone: '',
+        price: 0,
+        totalSales: 0,
+        status: 'exchange',
+        carrier_fee: feePerExchange || null,
+        rule_fee: 0,
+        fee_delta: 0,
+        moneyParseError: false,
+        city: '',
+      });
+    }
+
+    if (parsed.length === 0 && totalCod > 0) {
+      parsed.push({
+        id: crypto.randomUUID(),
+        barcode: 'REC-001',
+        productName: 'دفعة استخلاص',
+        phone: '',
+        price: totalCod,
+        totalSales: totalCod,
+        status: 'delivered',
+        carrier_fee: summary.deliveryFees || null,
+        rule_fee: summary.deliveryFees || 0,
+        fee_delta: 0,
+        moneyParseError: false,
+        city: '',
+      });
+    }
+  }
+
   return {
-    rows: [],
+    rows: parsed,
     isSummaryReceipt: true,
     summary,
     autoFees: (feePerDelivery || feePerReturn)

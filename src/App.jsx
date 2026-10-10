@@ -403,13 +403,31 @@ const API_KEY_COMMIT_DELAY = 800;
             if (template === 'CONVERTY') result = parseConverty(rawRows);
             else if (template === 'LOGISTA') result = parseLogista(rawRows);
             else if (template === 'INTIGO') result = parseIntigo(rawRows);
-            else if (template === 'PAYMENT_RECEIPT') result = parsePaymentReceipt(rawRows);
+            else if (template === 'PAYMENT_RECEIPT') {
+              result = parsePaymentReceipt(rawRows);
+              if (workbook.SheetNames.length > 1) {
+                for (let s = 1; s < workbook.SheetNames.length; s++) {
+                  const otherSheet = workbook.Sheets[workbook.SheetNames[s]];
+                  const otherRows = XLSX.utils.sheet_to_json(otherSheet, { header: 1, defval: '' });
+                  const otherTemplate = detectTemplate(otherRows);
+                  let extraResult = null;
+                  if (otherTemplate === 'CONVERTY') extraResult = parseConverty(otherRows);
+                  else if (otherTemplate === 'LOGISTA') extraResult = parseLogista(otherRows);
+                  else if (otherTemplate === 'INTIGO') extraResult = parseIntigo(otherRows);
+                  if (extraResult && extraResult.rows.length > 0) {
+                    result.rows = extraResult.rows;
+                    if (extraResult.autoFees && !result.autoFees) result.autoFees = extraResult.autoFees;
+                    break;
+                  }
+                }
+              }
+            }
             else {
               setError('خطأ: تنسيق الملف غير معروف. يُقبل ملفات Converty أو Logista أو Intigo أو وصل استخلاص.');
               return;
             }
 
-            if (!result.isSummaryReceipt && result.rows.length === 0) {
+            if (result.rows.length === 0) {
               setError('خطأ: الملف لا يحتوي على أي بيانات تخص التوصيل أو الإرجاع.');
               return;
             }
@@ -421,17 +439,12 @@ const API_KEY_COMMIT_DELAY = 800;
             if (result.isSummaryReceipt) {
               setActiveCarrier('PAYMENT_RECEIPT');
               setReceiptSummary(result.summary);
-              if (result.autoFees) {
-                setAutoFeesInfo(result.autoFees);
-                setCakadoFees(result.autoFees);
-                setBalkisFees(result.autoFees);
-              }
-              return;
+            } else {
+              setActiveCarrier(template);
             }
             
             // Full State Reset: On every file upload, reset all state before loading new data
             setMasterRows(result.rows);
-            setActiveCarrier(template);
             
             if (result.duplicateNids && result.duplicateNids.length > 0) {
                setDuplicateNids(result.duplicateNids);
@@ -553,7 +566,47 @@ const API_KEY_COMMIT_DELAY = 800;
       }, []);
 
       
-      const renderFeeInputs = (fees, setFees, isLocked = false) => (
+      const changeSelectedStatus = useCallback((newStatus) => {
+        if (selectedIds.size === 0) return;
+        const idsToUpdate = new Set(selectedIds);
+        const updateRows = (rows) => rows.map((r) => {
+          if (!idsToUpdate.has(r.id)) return r;
+          const basePrice = (r.price != null && r.price > 0) ? r.price : (r.totalSales || 0);
+          const isDelivered = newStatus === 'delivered';
+          return {
+            ...r,
+            status: newStatus,
+            price: basePrice,
+            totalSales: isDelivered ? basePrice : 0,
+          };
+        });
+
+        setMasterRows(prev => updateRows(prev));
+        setCakadoRows(prev => updateRows(prev));
+        setBalkisRows(prev => updateRows(prev));
+      }, [selectedIds]);
+
+      const toggleRowStatus = useCallback((row) => {
+        const nextStatus = row.status === 'delivered' ? 'returned' : 'delivered';
+        const basePrice = (row.price != null && row.price > 0) ? row.price : (row.totalSales || 0);
+        const isDelivered = nextStatus === 'delivered';
+
+        const updateRows = (rows) => rows.map((r) => {
+          if (r.id !== row.id) return r;
+          return {
+            ...r,
+            status: nextStatus,
+            price: basePrice,
+            totalSales: isDelivered ? basePrice : 0,
+          };
+        });
+
+        setMasterRows(prev => updateRows(prev));
+        setCakadoRows(prev => updateRows(prev));
+        setBalkisRows(prev => updateRows(prev));
+      }, []);
+      
+      const renderFeeInputs = (fees, setFees, isLocked = false, zoneKey = 'default') => (
         <Card className="mt-4 p-4 flex flex-col gap-3">
           <h4 className="text-sm font-bold text-ink flex items-center justify-between">
             <span>إعدادات الرسوم</span>
@@ -562,9 +615,9 @@ const API_KEY_COMMIT_DELAY = 800;
           {!isLocked && (
             <div className="space-y-3">
               <div>
-                <Label htmlFor="fee-delivery" className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم التوصيل (TND)</Label>
+                <Label htmlFor={`fee-delivery-${zoneKey}`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم التوصيل (TND)</Label>
                 <Input
-                  id="fee-delivery"
+                  id={`fee-delivery-${zoneKey}`}
                   type="number"
                   step="0.001"
                   min="0"
@@ -575,9 +628,9 @@ const API_KEY_COMMIT_DELAY = 800;
                 />
               </div>
               <div>
-                <Label htmlFor="fee-return" className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم الإرجاع (TND)</Label>
+                <Label htmlFor={`fee-return-${zoneKey}`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم الإرجاع (TND)</Label>
                 <Input
-                  id="fee-return"
+                  id={`fee-return-${zoneKey}`}
                   type="number"
                   step="0.001"
                   min="0"
@@ -931,6 +984,7 @@ return (
   onDragStart={handleDragStart}
   onMoveDirect={moveSelectedDirectly}
   onRetry={handleRetryEnrichment}
+  onToggleStatus={toggleRowStatus}
   rows={viewMaster} title='غير مصنفة' zone='master' selectable={true} accentColor='' /></div>
                   <div className="order-2 lg:order-none">
                     <ZoneTable 
@@ -941,8 +995,9 @@ return (
   onDragStart={handleDragStart}
   onMoveDirect={moveSelectedDirectly}
   onRetry={handleRetryEnrichment}
+  onToggleStatus={toggleRowStatus}
   rows={viewCakado} title='كاكادو' zone='cakado' selectable={true} accentColor='var(--brand)' />
-                    {renderFeeInputs(cakadoFees, setCakadoFees, isIntigoLocked)}
+                    {renderFeeInputs(cakadoFees, setCakadoFees, isIntigoLocked, 'cakado')}
                   </div>
                   <div className="order-3 lg:order-none">
                     <ZoneTable 
@@ -953,8 +1008,9 @@ return (
   onDragStart={handleDragStart}
   onMoveDirect={moveSelectedDirectly}
   onRetry={handleRetryEnrichment}
+  onToggleStatus={toggleRowStatus}
   rows={viewBalkis} title='بلقيس' zone='balkis' selectable={true} accentColor='#3b82f6' />
-                    {renderFeeInputs(balkisFees, setBalkisFees, isIntigoLocked)}
+                    {renderFeeInputs(balkisFees, setBalkisFees, isIntigoLocked, 'balkis')}
                   </div>
                 </div>
               </React.Fragment>
@@ -963,22 +1019,45 @@ return (
             {/* Floating Selection Bar */}
             {selectedIds.size > 0 && (
               <div className="fixed inset-x-0 bottom-0 p-4 z-50 pointer-events-none">
-                <div className="max-w-3xl mx-auto bg-surface border border-line text-ink rounded-2xl shadow-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-4 pointer-events-auto surface-highlight">
-                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start px-2">
+                <div className="max-w-4xl mx-auto bg-surface border border-line text-ink rounded-2xl shadow-xl p-3 flex flex-col md:flex-row items-center justify-between gap-4 pointer-events-auto surface-highlight">
+                  <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start px-2">
                     <div className="flex items-center gap-2">
                       <Badge className="font-bold shadow-sm">{selectedIds.size}</Badge>
                       <span className="text-ink-soft font-medium text-sm">محدد</span>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} className="text-ink-faint hover:text-ink font-medium">إلغاء</Button>
                   </div>
-                  <div className="flex gap-2 w-full sm:w-auto overflow-x-auto hide-scrollbar">
-                    <Button variant="secondary" size="lg" onClick={() => moveSelected('master')} className="flex-1 sm:flex-none rounded-xl whitespace-nowrap font-bold">
+                  <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end overflow-x-auto hide-scrollbar">
+                    {/* Status Classification Controls */}
+                    <div className="flex items-center gap-1.5 pe-2 border-e border-line">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => changeSelectedStatus('delivered')}
+                        className="rounded-xl whitespace-nowrap font-bold text-pos border-pos/30 hover:bg-pos/10 min-h-[40px]"
+                        title="تصنيف الطلبات المحددة كـ مُسلّم"
+                      >
+                        ✓ تصنيف مُسلّم
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => changeSelectedStatus('returned')}
+                        className="rounded-xl whitespace-nowrap font-bold text-neg border-neg/30 hover:bg-neg/10 min-h-[40px]"
+                        title="تصنيف الطلبات المحددة كـ مسترجع"
+                      >
+                        ✗ تصنيف مسترجع
+                      </Button>
+                    </div>
+
+                    {/* Company Assignment Controls */}
+                    <Button variant="secondary" size="sm" onClick={() => moveSelected('master')} className="rounded-xl whitespace-nowrap font-bold min-h-[40px]">
                       إلى غير مصنفة
                     </Button>
-                    <Button size="lg" onClick={() => moveSelected('cakado')} className="flex-1 sm:flex-none rounded-xl whitespace-nowrap font-bold shadow-sm shadow-brand/20">
+                    <Button size="sm" onClick={() => moveSelected('cakado')} className="rounded-xl whitespace-nowrap font-bold shadow-sm shadow-brand/20 min-h-[40px]">
                       تعيين كاكادو
                     </Button>
-                    <Button size="lg" onClick={() => moveSelected('balkis')} className="flex-1 sm:flex-none rounded-xl whitespace-nowrap font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-sm shadow-blue-600/20">
+                    <Button size="sm" onClick={() => moveSelected('balkis')} className="rounded-xl whitespace-nowrap font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-sm shadow-blue-600/20 min-h-[40px]">
                       تعيين بلقيس
                     </Button>
                   </div>
