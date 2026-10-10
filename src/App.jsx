@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useDeferredValue, Suspense, lazy } from 'react';
-import { formatTND, detectTemplate, parseConverty, parseLogista, parseIntigo, CACHE_KEY_PREFIX, calculateStats, enrichIntigoRows, progressStore, checkHealth, sortByProductName, parsePaymentReceipt } from './utils.js';
+import { formatTND, detectTemplate, parseConverty, parseLogista, parseIntigo, CACHE_KEY_PREFIX, calculateStats, enrichIntigoRows, progressStore, checkHealth, sortByProductName, parsePaymentReceipt, isBinarySpreadsheet, decodeTextBytes } from './utils.js';
 import { AnimatedNumber, ZoneTable } from './components.jsx';
 import { Button } from './components/ui/button.jsx';
 import { Input } from './components/ui/input.jsx';
@@ -393,7 +393,10 @@ const API_KEY_COMMIT_DELAY = 800;
           setIsReadingFile(true);
           try {
             const XLSX = await import('xlsx');
-            const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+            const bytes = new Uint8Array(e.target.result);
+            const workbook = isBinarySpreadsheet(bytes)
+              ? XLSX.read(bytes, { type: 'array' })
+              : XLSX.read(decodeTextBytes(bytes), { type: 'string' });
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
             const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
 

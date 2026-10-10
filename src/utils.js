@@ -2,6 +2,27 @@ export const round3 = (x) => {
       const n = Math.round((Number(x) || 0) * 1000) / 1000;
       return isNaN(n) ? 0 : n;
     };
+
+// A byte stream is a real binary spreadsheet (xlsx=ZIP, xls=OLE2) only when it
+// starts with a known container signature. Anything else is a text export
+// (CSV/TXT) whose accented characters must be decoded, not read as raw bytes.
+export const isBinarySpreadsheet = (bytes) => {
+  if (!bytes || bytes.length < 2) return false;
+  const b0 = bytes[0], b1 = bytes[1];
+  return (b0 === 0x50 && b1 === 0x4B) || (b0 === 0xD0 && b1 === 0xCF);
+};
+
+export const decodeTextBytes = (bytes) => {
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let text = new TextDecoder('utf-8', { fatal: false }).decode(arr);
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  // UTF-8 exports are the norm; fall back to Windows-1252 for legacy CSVs,
+  // which never produce the UTF-8 replacement character.
+  if (text.includes('\uFFFD')) {
+    try { text = new TextDecoder('windows-1252').decode(arr); } catch (_e) { /* keep utf-8 */ }
+  }
+  return text;
+};
 export 
     const formatTND = (x) => round3(x).toFixed(3).replace(".", ",");
 export 
