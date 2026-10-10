@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useDeferredValue, Suspense, lazy } from 'react';
-import { formatTND, detectTemplate, parseConverty, parseLogista, parseIntigo, CACHE_KEY_PREFIX, calculateStats, enrichIntigoRows, progressStore, checkHealth, sortByProductName } from './utils.js';
+import { formatTND, detectTemplate, parseConverty, parseLogista, parseIntigo, CACHE_KEY_PREFIX, calculateStats, enrichIntigoRows, progressStore, checkHealth, sortByProductName, parsePaymentReceipt } from './utils.js';
 import { AnimatedNumber, ZoneTable } from './components.jsx';
 import { Button } from './components/ui/button.jsx';
 import { Input } from './components/ui/input.jsx';
@@ -193,6 +193,7 @@ export default function App() {
 
             const [dismissedUnknownGovs, setDismissedUnknownGovs] = useState(false);
       const [duplicateNids, setDuplicateNids] = useState([]);
+      const [receiptSummary, setReceiptSummary] = useState(null);
       const [unrecognizedStatuses, setUnrecognizedStatuses] = useState([]);
       const [healthStatus, setHealthStatus] = useState('checking');
       
@@ -254,6 +255,7 @@ const API_KEY_COMMIT_DELAY = 800;
                 setDuplicateNids([]);
         setUnrecognizedStatuses([]);
         setDismissedUnknownGovs(false);
+        setReceiptSummary(null);
       }, []);
 
       // Refs mirroring state that handlers need. Handlers stay referentially
@@ -401,19 +403,31 @@ const API_KEY_COMMIT_DELAY = 800;
             if (template === 'CONVERTY') result = parseConverty(rawRows);
             else if (template === 'LOGISTA') result = parseLogista(rawRows);
             else if (template === 'INTIGO') result = parseIntigo(rawRows);
+            else if (template === 'PAYMENT_RECEIPT') result = parsePaymentReceipt(rawRows);
             else {
-              setError('خطأ: تنسيق الملف غير معروف. يُقبل ملفات Converty أو Logista أو Intigo فقط.');
+              setError('خطأ: تنسيق الملف غير معروف. يُقبل ملفات Converty أو Logista أو Intigo أو وصل استخلاص.');
               return;
             }
 
-            if (result.rows.length === 0) {
+            if (!result.isSummaryReceipt && result.rows.length === 0) {
               setError('خطأ: الملف لا يحتوي على أي بيانات تخص التوصيل أو الإرجاع.');
               return;
             }
 
             resetSession();
-            
+
             const thisUploadId = currentUploadId.current;
+
+            if (result.isSummaryReceipt) {
+              setActiveCarrier('PAYMENT_RECEIPT');
+              setReceiptSummary(result.summary);
+              if (result.autoFees) {
+                setAutoFeesInfo(result.autoFees);
+                setCakadoFees(result.autoFees);
+                setBalkisFees(result.autoFees);
+              }
+              return;
+            }
             
             // Full State Reset: On every file upload, reset all state before loading new data
             setMasterRows(result.rows);
@@ -582,6 +596,7 @@ const API_KEY_COMMIT_DELAY = 800;
       const carrierBadge = activeCarrier === 'CONVERTY' ? 'First Delivery' :
                            activeCarrier === 'LOGISTA' ? 'BigBoss' :
                            activeCarrier === 'INTIGO' ? 'Intigo' :
+                           activeCarrier === 'PAYMENT_RECEIPT' ? 'وصل استخلاص' :
                            activeCarrier || 'لا يوجد';
 
       const isIntigoLocked = activeCarrier === 'INTIGO';
@@ -737,7 +752,7 @@ const API_KEY_COMMIT_DELAY = 800;
 
           <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-6 flex flex-col gap-6">
             {/* Upload Zone */}
-            {(!masterRows.length && !cakadoRows.length && !balkisRows.length) && (
+            {(!masterRows.length && !cakadoRows.length && !balkisRows.length && !receiptSummary) && (
               <label 
                 className={`border-2 border-dashed border-line bg-surface transition-colors rounded-xl p-12 flex flex-col items-center justify-center text-center group ${isReadingFile ? 'opacity-60 pointer-events-none' : 'hover:bg-surface-2 cursor-pointer'}`}
                 onDrop={onDropFile}
@@ -824,6 +839,79 @@ return (
                })()
             )}
             
+
+            {receiptSummary && (
+              <Card className="p-6 bg-surface border border-line">
+                <div className="flex items-center justify-between mb-4 border-b border-line pb-3">
+                  <div>
+                    <h2 className="text-xl font-bold font-display text-ink">وصل استخلاص</h2>
+                    <p className="text-xs text-ink-soft mt-0.5">ملخص الدفع المباشر من شركة التوصيل</p>
+                  </div>
+                  <Badge variant="secondary" className="text-xs font-mono font-bold">
+                    REÇU DE PAIEMENT
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-surface-2 p-3 rounded-lg border border-line">
+                    <span className="text-[10px] uppercase text-ink-faint block mb-1">المبلغ المحصّل (COD)</span>
+                    <span className="text-xl font-mono font-bold text-ink tabular-nums" dir="ltr">
+                      {formatTND(receiptSummary.cod || 0)}
+                    </span>
+                  </div>
+                  <div className="bg-surface-2 p-3 rounded-lg border border-line">
+                    <span className="text-[10px] uppercase text-ink-faint block mb-1">طرد مسلّم</span>
+                    <span className="text-xl font-mono font-bold text-pos tabular-nums">
+                      {receiptSummary.deliveredCount || 0}
+                    </span>
+                    {(receiptSummary.deliveryFees != null) && (
+                      <span className="text-[10px] text-ink-soft block mt-0.5" dir="ltr">
+                        {formatTND(receiptSummary.deliveryFees)} مصاريف
+                      </span>
+                    )}
+                  </div>
+                  <div className="bg-surface-2 p-3 rounded-lg border border-line">
+                    <span className="text-[10px] uppercase text-ink-faint block mb-1">طرد مسترجع</span>
+                    <span className="text-xl font-mono font-bold text-neg tabular-nums">
+                      {receiptSummary.returnedCount || 0}
+                    </span>
+                    {(receiptSummary.returnFees != null) && (
+                      <span className="text-[10px] text-ink-soft block mt-0.5" dir="ltr">
+                        {formatTND(receiptSummary.returnFees)} مصاريف
+                      </span>
+                    )}
+                  </div>
+                  <div className="bg-surface-2 p-3 rounded-lg border border-line">
+                    <span className="text-[10px] uppercase text-ink-faint block mb-1">الصافي للدفع</span>
+                    <span className="text-xl font-mono font-bold text-brand tabular-nums" dir="ltr">
+                      {formatTND(receiptSummary.amountToPay || 0)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border-t border-line pt-3">
+                  <details className="text-xs text-ink-soft">
+                    <summary className="cursor-pointer hover:text-ink font-medium select-none">
+                      عرض كامل البنود
+                    </summary>
+                    <table className="w-full mt-3 font-mono text-xs">
+                      <tbody>
+                        {Object.entries(receiptSummary).map(([k, v]) => (
+                          <tr key={k} className="border-b border-line/40 last:border-none">
+                            <td className="py-1 text-ink-soft">{k}</td>
+                            <td className="py-1 text-end text-ink tabular-nums" dir="ltr">
+                              {typeof v === 'number' && k.toLowerCase().includes('count')
+                                ? v
+                                : formatTND(v)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </details>
+                </div>
+              </Card>
+            )}
 
             {(masterRows.length > 0 || cakadoRows.length > 0 || balkisRows.length > 0) && (
               <React.Fragment>

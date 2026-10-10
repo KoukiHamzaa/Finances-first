@@ -84,41 +84,65 @@ export
 
     // Detect template type
 export function findHeaderAndScore(rows) {
-      if (!rows || rows.length === 0) return { template: 'UNKNOWN', headerIdx: 0 };
-      
-      let bestScore = 0;
-      let bestTemplate = 'UNKNOWN';
-      let bestIdx = 0;
+  if (!rows || rows.length === 0) return { template: 'UNKNOWN', headerIdx: 0 };
 
-      const scanLimit = Math.min(8, rows.length);
-      for (let i = 0; i < scanLimit; i++) {
-        const r = rows[i];
-        if (!r) continue;
-        const h = r.map(c => String(c ?? '').trim().toLowerCase());
-        
-        let convertyScore = 0;
-        if (h.includes('designation')) convertyScore++;
-        if (h.includes('prix')) convertyScore++;
-        if (h.includes('etat')) convertyScore++;
-        
-        let intigoScore = 0;
-        if (h.includes('nid')) intigoScore++;
-        if (h.includes('ville')) intigoScore++;
-        if (h.includes('statut')) intigoScore++;
-        if (h.some(x => x.includes('prix cod'))) intigoScore++;
-        if (h.includes('frais')) intigoScore++;
-        
-        const firstCell = String(r[0] ?? '').trim().toLowerCase();
-        let logistaScore = 0;
-        if (firstCell.startsWith('détails paiement') || firstCell.startsWith('details paiement')) logistaScore = 5;
+  let bestScore = 0;
+  let bestTemplate = 'UNKNOWN';
+  let bestIdx = 0;
 
-        if (logistaScore >= 5 && logistaScore > bestScore) { bestScore = logistaScore; bestTemplate = 'LOGISTA'; bestIdx = i; }
-        else if (intigoScore >= 4 && intigoScore > bestScore) { bestScore = intigoScore; bestTemplate = 'INTIGO'; bestIdx = i; }
-        else if (convertyScore >= 3 && convertyScore > bestScore) { bestScore = convertyScore; bestTemplate = 'CONVERTY'; bestIdx = i; }
-      }
-      
-      return { template: bestTemplate, headerIdx: bestIdx };
+  const scanLimit = Math.min(8, rows.length);
+  for (let i = 0; i < scanLimit; i++) {
+    const r = rows[i];
+    if (!r) continue;
+    const h = r.map(c => String(c ?? '').trim().toLowerCase());
+
+    let convertyScore = 0;
+    if (h.includes('designation')) convertyScore++;
+    if (h.includes('prix')) convertyScore++;
+    if (h.includes('etat')) convertyScore++;
+
+    let intigoScore = 0;
+    if (h.includes('nid')) intigoScore++;
+    if (h.includes('ville')) intigoScore++;
+    if (h.includes('statut')) intigoScore++;
+    if (h.some(x => x.includes('prix cod'))) intigoScore++;
+    if (h.includes('frais')) intigoScore++;
+
+    const firstCell = String(r[0] ?? '').trim().toLowerCase();
+    let logistaScore = 0;
+    if (firstCell.startsWith('détails paiement') || firstCell.startsWith('details paiement')) logistaScore = 5;
+
+    if (logistaScore >= 5 && logistaScore > bestScore) { bestScore = logistaScore; bestTemplate = 'LOGISTA'; bestIdx = i; }
+    else if (intigoScore >= 4 && intigoScore > bestScore) { bestScore = intigoScore; bestTemplate = 'INTIGO'; bestIdx = i; }
+    else if (convertyScore >= 3 && convertyScore > bestScore) { bestScore = convertyScore; bestTemplate = 'CONVERTY'; bestIdx = i; }
+
+    // PAYMENT_RECEIPT detection — carrier summary receipts (Reçu de paiement)
+    // Headers: ID | DESCRIPTION | QUANTITÉ | MONTANT
+    let receiptScore = 0;
+    if (h.includes('description') && h.includes('montant')) {
+      receiptScore += 2;
+      if (h[0] === 'id') receiptScore++;
+      if (h.some(x => x.includes('quantit'))) receiptScore++;
+      // Confirm with a data row: look for known receipt line keywords
+      const descIdx = h.indexOf('description');
+      const peekRows = rows.slice(i + 1, Math.min(i + 5, rows.length));
+      const isReceipt = peekRows.some(dr => {
+        const d = String(dr?.[descIdx] ?? '').toLowerCase();
+        return d.includes('contre remboursement') ||
+               d.includes('frais colis') ||
+               (d.includes('montant') && d.includes('payer'));
+      });
+      if (isReceipt) receiptScore += 3;
     }
+    if (receiptScore >= 5 && receiptScore > bestScore) {
+      bestScore = receiptScore;
+      bestTemplate = 'PAYMENT_RECEIPT';
+      bestIdx = i;
+    }
+  }
+
+  return { template: bestTemplate, headerIdx: bestIdx };
+}
 
 export function detectTemplate(rows) {
       return findHeaderAndScore(rows).template;
@@ -379,6 +403,76 @@ export function parseIntigo(rows) {
         
       return { rows: parsed, autoFees: null, isIntigo: true, duplicateNids: [...new Set(duplicateNids)] };
     }
+
+export function parsePaymentReceipt(rows) {
+  const { headerIdx } = findHeaderAndScore(rows);
+  const header = rows[headerIdx];
+  const h = header.map(c => String(c ?? '').trim().toLowerCase());
+  const descIdx     = h.findIndex(x => x === 'description');
+  const montantIdx  = h.findIndex(x => x === 'montant');
+  const quantiteIdx = h.findIndex(x => x.includes('quantit'));
+
+  // All keys are accent-stripped (NFKD + remove combining marks) and
+  // lowercased, matching the normalisation in the loop below.
+  const KEY_MAP = {
+    'contre remboursement':     'cod',
+    'frais colis livres':       'deliveryFees',
+    'frais colis retour':       'returnFees',
+    'frais colis echange':      'exchangeFees',
+    'frais colis big':          'bigFees',
+    'frais colis pickup':       'pickupFees',
+    'total frais de livraison': 'totalFees',
+    'frais de paiement':        'paymentFees',
+    'retenu de passage':        'retenuPassage',
+    'montant a payer':          'amountToPay',
+  };
+  const COUNT_MAP = {
+    'frais colis livres':  'deliveredCount',
+    'frais colis retour':  'returnedCount',
+    'frais colis echange': 'exchangeCount',
+    'frais colis big':     'bigCount',
+    'frais colis pickup':  'pickupCount',
+  };
+
+  const summary = {};
+  rows.slice(headerIdx + 1).forEach(row => {
+    if (!row || row[descIdx] == null) return;
+    // Strip accents so É→E, À→A, etc. before matching
+    const norm = String(row[descIdx])
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+    const summaryKey = KEY_MAP[norm];
+    if (!summaryKey) return;
+    summary[summaryKey] = parseMoney(row[montantIdx]).value;
+    const countKey = COUNT_MAP[norm];
+    if (countKey && row[quantiteIdx] != null && row[quantiteIdx] !== '') {
+      summary[countKey] = Number(row[quantiteIdx]) || 0;
+    }
+  });
+
+  // Derive per-parcel fee rates from aggregate figures
+  const delCount = summary.deliveredCount || 0;
+  const retCount = summary.returnedCount  || 0;
+  const feePerDelivery = delCount > 0
+    ? round3((summary.deliveryFees || 0) / delCount)
+    : 0;
+  const feePerReturn = retCount > 0
+    ? round3((summary.returnFees || 0) / retCount)
+    : 0;
+
+  return {
+    rows: [],
+    isSummaryReceipt: true,
+    summary,
+    autoFees: (feePerDelivery || feePerReturn)
+      ? { delivery: feePerDelivery, return: feePerReturn }
+      : null,
+    duplicateNids: [],
+  };
+}
+
 export const APP_VERSION = 'v1.0';
 export const CACHE_KEY_PREFIX = 'intigo_nid_';
 
