@@ -431,7 +431,35 @@ export function parseIntigo(rows) {
           };
         }).filter(Boolean);
         
-      return { rows: parsed, autoFees: null, isIntigo: true, duplicateNids: [...new Set(duplicateNids)] };
+      // Derive fee rates from the Frais column so the inputs are pre-filled on upload.
+      let deliveryFee = null;
+      let returnGrandTunisFee = null;
+      let returnOtherFee = null;
+
+      for (const row of parsed) {
+        if (row.carrier_fee == null) continue;
+        if (row.status === 'delivered' && deliveryFee === null) {
+          deliveryFee = row.carrier_fee;
+        } else if (row.status === 'returned') {
+          const govInfo = resolveGov(row.city);
+          if (govInfo.isGrandTunis && returnGrandTunisFee === null) {
+            returnGrandTunisFee = row.carrier_fee;
+          } else if (!govInfo.isGrandTunis && !govInfo.unknown && returnOtherFee === null) {
+            returnOtherFee = row.carrier_fee;
+          }
+        }
+        if (deliveryFee !== null && returnGrandTunisFee !== null && returnOtherFee !== null) break;
+      }
+
+      const autoFees = (deliveryFee !== null || returnGrandTunisFee !== null || returnOtherFee !== null)
+        ? {
+            delivery: deliveryFee ?? 0,
+            returnGrandTunis: returnGrandTunisFee ?? 0,
+            returnOther: returnOtherFee ?? 0,
+          }
+        : null;
+
+      return { rows: parsed, autoFees, isIntigo: true, duplicateNids: [...new Set(duplicateNids)] };
     }
 
 export function parsePaymentReceipt(rows) {
@@ -676,14 +704,16 @@ export const calculateStats = (rows, fees) => {
              if (row.totalSales === 0) prepaidCount++;
              totalSales += row.totalSales;
              
-             let rf = (row.carrier === 'INTIGO') ? 7 : (fees.delivery || 0);
+             let rf = fees.delivery || 0;
              row.rule_fee = rf;
              totalRuleFeeDelivery += rf;
           } else if (row.status === 'returned') {
              let rf = fees.return || 0;
              if (row.carrier === 'INTIGO') {
                 const govInfo = resolveGov(row.city);
-                rf = govInfo.isGrandTunis ? 1 : 2;
+                rf = govInfo.isGrandTunis
+                  ? (fees.returnGrandTunis > 0 ? fees.returnGrandTunis : rf)
+                  : (fees.returnOther > 0 ? fees.returnOther : rf);
                 if (govInfo.unknown) newUnknownGovs.push(govInfo.raw);
              }
              row.rule_fee = rf;

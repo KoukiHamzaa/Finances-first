@@ -193,8 +193,8 @@ export default function App() {
       const [showResetModal, setShowResetModal] = useState(false);
 
       // Per-Brand Fee Structure
-      const [cakadoFees, setCakadoFees] = useState({ delivery: 0, return: 0 });
-      const [balkisFees, setBalkisFees] = useState({ delivery: 0, return: 0 });
+      const [cakadoFees, setCakadoFees] = useState({ delivery: 0, return: 0, returnGrandTunis: 0, returnOther: 0 });
+      const [balkisFees, setBalkisFees] = useState({ delivery: 0, return: 0, returnGrandTunis: 0, returnOther: 0 });
 
       // Manual brand allocation for a summary payment receipt, which carries no
       // product-level rows to classify by.
@@ -261,8 +261,8 @@ const API_KEY_COMMIT_DELAY = 800;
         setSelectedIds(new Set());
         setIsEnriching(false);
         progressStore.set({ current: 0, total: 0, errors: 0 });
-        setCakadoFees({ delivery: 0, return: 0 });
-        setBalkisFees({ delivery: 0, return: 0 });
+        setCakadoFees({ delivery: 0, return: 0, returnGrandTunis: 0, returnOther: 0 });
+        setBalkisFees({ delivery: 0, return: 0, returnGrandTunis: 0, returnOther: 0 });
         setSplitAlloc({ cakado: { delivered: 0, returned: 0 }, balkis: { delivered: 0, returned: 0 } });
         setShowResetModal(false);
                 setDuplicateNids([]);
@@ -481,8 +481,8 @@ const API_KEY_COMMIT_DELAY = 800;
             
             if (result.autoFees) {
               setAutoFeesInfo(result.autoFees);
-              setCakadoFees(result.autoFees);
-              setBalkisFees(result.autoFees);
+              setCakadoFees(prev => ({ ...prev, ...result.autoFees }));
+              setBalkisFees(prev => ({ ...prev, ...result.autoFees }));
             }
             
             if (result.isIntigo) {
@@ -632,27 +632,54 @@ const API_KEY_COMMIT_DELAY = 800;
         setBalkisRows(prev => updateRows(prev));
       }, []);
       
-      const renderFeeInputs = (fees, setFees, isLocked = false, zoneKey = 'default') => (
+      const renderFeeInputs = (fees, setFees, isIntigo = false, zoneKey = 'default') => (
         <Card className="mt-4 p-4 flex flex-col gap-3">
-          <h4 className="text-sm font-bold text-ink flex items-center justify-between">
-            <span>إعدادات الرسوم</span>
-            {isLocked && <Badge variant="warning" className="uppercase tracking-wider font-mono">تلقائية 7/1/2</Badge>}
-          </h4>
-          {!isLocked && (
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor={`fee-delivery-${zoneKey}`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم التوصيل (TND)</Label>
-                <Input
-                  id={`fee-delivery-${zoneKey}`}
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  dir="ltr"
-                  className="bg-surface-2 tabular-nums"
-                  value={fees.delivery || 0}
-                  onChange={e => setFees(prev => ({ ...prev, delivery: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
+          <h4 className="text-sm font-bold text-ink">إعدادات الرسوم</h4>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor={`fee-delivery-${zoneKey}`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم التوصيل (TND)</Label>
+              <Input
+                id={`fee-delivery-${zoneKey}`}
+                type="number"
+                step="0.001"
+                min="0"
+                dir="ltr"
+                className="bg-surface-2 tabular-nums"
+                value={fees.delivery || 0}
+                onChange={e => setFees(prev => ({ ...prev, delivery: parseFloat(e.target.value) || 0 }))}
+              />
+            </div>
+            {isIntigo ? (
+              <>
+                <div>
+                  <Label htmlFor={`fee-ret-gt-${zoneKey}`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم الإرجاع — تونس الكبرى (TND)</Label>
+                  <p className="text-[10px] text-ink-faint mb-1">تونس، منوبة، أريانة، بن عروس</p>
+                  <Input
+                    id={`fee-ret-gt-${zoneKey}`}
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    dir="ltr"
+                    className="bg-surface-2 tabular-nums"
+                    value={fees.returnGrandTunis || 0}
+                    onChange={e => setFees(prev => ({ ...prev, returnGrandTunis: parseFloat(e.target.value) || 0 }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`fee-ret-other-${zoneKey}`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم الإرجاع — باقي الولايات (TND)</Label>
+                  <Input
+                    id={`fee-ret-other-${zoneKey}`}
+                    type="number"
+                    step="0.001"
+                    min="0"
+                    dir="ltr"
+                    className="bg-surface-2 tabular-nums"
+                    value={fees.returnOther || 0}
+                    onChange={e => setFees(prev => ({ ...prev, returnOther: parseFloat(e.target.value) || 0 }))}
+                  />
+                </div>
+              </>
+            ) : (
               <div>
                 <Label htmlFor={`fee-return-${zoneKey}`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسوم الإرجاع (TND)</Label>
                 <Input
@@ -666,8 +693,8 @@ const API_KEY_COMMIT_DELAY = 800;
                   onChange={e => setFees(prev => ({ ...prev, return: parseFloat(e.target.value) || 0 }))}
                 />
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </Card>
       );
       const netTotalRevenue = cakadoStats.netRule + balkisStats.netRule;
@@ -678,7 +705,6 @@ const API_KEY_COMMIT_DELAY = 800;
                            activeCarrier === 'PAYMENT_RECEIPT' ? 'وصل استخلاص' :
                            activeCarrier || 'لا يوجد';
 
-      const isIntigoLocked = activeCarrier === 'INTIGO';
 
       if (!unlocked) {
         return (
@@ -1044,7 +1070,7 @@ return (
   onRetry={handleRetryEnrichment}
   onToggleStatus={toggleRowStatus}
   rows={viewCakado} title='كاكادو' zone='cakado' selectable={true} accentColor='var(--brand)' />
-                    {renderFeeInputs(cakadoFees, setCakadoFees, isIntigoLocked, 'cakado')}
+                    {renderFeeInputs(cakadoFees, setCakadoFees, activeCarrier === 'INTIGO', 'cakado')}
                   </div>
                   <div className="order-3 lg:order-none">
                     <ZoneTable 
@@ -1057,7 +1083,7 @@ return (
   onRetry={handleRetryEnrichment}
   onToggleStatus={toggleRowStatus}
   rows={viewBalkis} title='بلقيس' zone='balkis' selectable={true} accentColor='#3b82f6' />
-                    {renderFeeInputs(balkisFees, setBalkisFees, isIntigoLocked, 'balkis')}
+                    {renderFeeInputs(balkisFees, setBalkisFees, activeCarrier === 'INTIGO', 'balkis')}
                   </div>
                 </div>
               </React.Fragment>
