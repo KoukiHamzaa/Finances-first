@@ -5,6 +5,8 @@ import { Checkbox } from './components/ui/checkbox.jsx';
 import { Badge } from './components/ui/badge.jsx';
 import { Card } from './components/ui/card.jsx';
 import { Progress } from './components/ui/progress.jsx';
+import { Input } from './components/ui/input.jsx';
+import { Label } from './components/ui/label.jsx';
 
 
 export const supportsHoverDrag = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(hover: hover) and (pointer: fine)').matches : false;
@@ -355,6 +357,148 @@ const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } 
           </Card>
         );
       });
+export const ReceiptSplitPanel = ({ receiptSummary, splitAlloc, setSplitAlloc, cakadoFees, balkisFees, setCakadoFees, setBalkisFees, formatTND }) => {
+  const totalDelivered = receiptSummary.deliveredCount || 0;
+  const totalReturned = receiptSummary.returnedCount || 0;
+  const totalCOD = receiptSummary.cod || 0;
+
+  const brands = [
+    { key: 'cakado', title: 'CAKADO (كاكادو)', fees: cakadoFees, setFees: setCakadoFees, accent: 'var(--brand)' },
+    { key: 'balkis', title: 'BALKIS (بلقيس)', fees: balkisFees, setFees: setBalkisFees, accent: '#3b82f6' },
+  ];
+
+  const updateCount = (brandKey, field, value) => {
+    const n = Math.max(0, Math.floor(Number(value) || 0));
+    setSplitAlloc(prev => ({ ...prev, [brandKey]: { ...prev[brandKey], [field]: n } }));
+  };
+  const updateFee = (setFees, field, value) => {
+    setFees(prev => ({ ...prev, [field]: parseFloat(value) || 0 }));
+  };
+
+  const deliveredSum = (splitAlloc.cakado.delivered || 0) + (splitAlloc.balkis.delivered || 0);
+  const returnedSum = (splitAlloc.cakado.returned || 0) + (splitAlloc.balkis.returned || 0);
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Explanation banner */}
+      <div className="rounded-xl border border-line bg-surface-2 p-4 text-sm text-ink-soft leading-relaxed">
+        ملف الوصل لا يحتوي على تفاصيل المنتجات الفردية — لا يمكن التصنيف حسب الاسم.
+        لتصنيف الطرود حسب العلامة التجارية، ارفع ملف تقرير الطرود (Détails recette) من First Delivery.
+        يمكنك هنا توزيع الأعداد يدوياً بين CAKADO و BALKIS.
+      </div>
+
+      {/* Per-brand panels */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {brands.map((b) => {
+          const brand = splitAlloc[b.key];
+          const brandCOD = totalDelivered > 0 ? (brand.delivered / totalDelivered) * totalCOD : 0;
+          const brandDelivFee = brand.delivered * (b.fees.delivery || 0);
+          const brandRetFee = brand.returned * (b.fees.return || 0);
+          const brandNet = brandCOD - brandDelivFee - brandRetFee;
+          return (
+            <Card key={b.key} className="relative overflow-hidden rounded-xl p-5 flex flex-col gap-4 surface-highlight">
+              {b.accent && <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: b.accent }}></div>}
+              <div className="pt-1">
+                <Badge variant="secondary" className="text-xs font-bold uppercase tracking-wider">{b.title}</Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor={`split-${b.key}-delivered`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">طرود مسلّمة</Label>
+                  <Input
+                    id={`split-${b.key}-delivered`}
+                    type="number"
+                    min="0"
+                    step="1"
+                    dir="ltr"
+                    className="bg-surface-2 tabular-nums"
+                    value={brand.delivered || 0}
+                    onChange={e => updateCount(b.key, 'delivered', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`split-${b.key}-returned`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">طرود مسترجعة</Label>
+                  <Input
+                    id={`split-${b.key}-returned`}
+                    type="number"
+                    min="0"
+                    step="1"
+                    dir="ltr"
+                    className="bg-surface-2 tabular-nums"
+                    value={brand.returned || 0}
+                    onChange={e => updateCount(b.key, 'returned', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`split-${b.key}-fee-delivery`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسم التسليم / طرد (TND)</Label>
+                  <Input
+                    id={`split-${b.key}-fee-delivery`}
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    dir="ltr"
+                    className="bg-surface-2 tabular-nums"
+                    value={b.fees.delivery || 0}
+                    onChange={e => updateFee(b.setFees, 'delivery', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`split-${b.key}-fee-return`} className="block text-[11px] text-ink-soft mb-1 uppercase tracking-wide">رسم الإرجاع / طرد (TND)</Label>
+                  <Input
+                    id={`split-${b.key}-fee-return`}
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    dir="ltr"
+                    className="bg-surface-2 tabular-nums"
+                    value={b.fees.return || 0}
+                    onChange={e => updateFee(b.setFees, 'return', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-3 border-t border-line text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-soft">COD المحصّل</span>
+                  <span className="tabular-nums text-ink" dir="ltr">+{formatTND(brandCOD)} د.ت</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-soft">رسوم التسليم</span>
+                  <span className="tabular-nums text-neg" dir="ltr">−{formatTND(brandDelivFee)} د.ت</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-ink-soft">رسوم الإرجاع</span>
+                  <span className="tabular-nums text-neg" dir="ltr">−{formatTND(brandRetFee)} د.ت</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 mt-1 border-t border-line">
+                  <span className="text-[10px] uppercase tracking-wide text-ink-faint">الصافي</span>
+                  <span className={`text-3xl font-mono font-extrabold tabular-nums ${brandNet < 0 ? 'text-neg' : 'text-pos'}`} dir="ltr">{formatTND(brandNet)}</span>
+                </div>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Validation row */}
+      <div className="rounded-xl border border-line bg-surface-2 p-4 flex flex-col sm:flex-row gap-3 sm:gap-6">
+        <div className={`flex-1 flex items-center justify-between gap-3 text-sm ${deliveredSum === totalDelivered ? 'text-pos' : 'text-neg'}`}>
+          <span className="text-ink-soft">إجمالي الطرود المُسلّمة</span>
+          <span className="font-mono font-bold tabular-nums" dir="ltr">
+            {splitAlloc.cakado.delivered || 0} + {splitAlloc.balkis.delivered || 0} = {deliveredSum} / {totalDelivered}
+          </span>
+        </div>
+        <div className={`flex-1 flex items-center justify-between gap-3 text-sm ${returnedSum === totalReturned ? 'text-pos' : 'text-neg'}`}>
+          <span className="text-ink-soft">إجمالي الطرود المسترجعة</span>
+          <span className="font-mono font-bold tabular-nums" dir="ltr">
+            {splitAlloc.cakado.returned || 0} + {splitAlloc.balkis.returned || 0} = {returnedSum} / {totalReturned}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // A render error anywhere below this point shows a recoverable panel instead of
 // a blank page. Nothing above it can still fail, which is the point.
 export class ErrorBoundary extends React.Component {

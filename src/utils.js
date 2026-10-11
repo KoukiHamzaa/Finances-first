@@ -208,6 +208,14 @@ export function parseConverty(rows) {
           }
           
           let phone = String(getFlexible(row, ['téléphone', 'telephone', 'tel', 'phone']) ?? '').trim();
+          // First Delivery embeds the phone inside the Client column as "Name / phone"
+          if (!phone) {
+            const clientVal = String(getFlexible(row, ['client']) ?? '').trim();
+            if (clientVal.includes('/')) {
+              const parts = clientVal.split('/');
+              phone = parts[parts.length - 1].trim();
+            }
+          }
           let priceObj = parseMoney(get(row, 'prix'));
           
           return {
@@ -215,6 +223,7 @@ export function parseConverty(rows) {
             barcode: String(getFlexible(row, ['code', 'tracking', 'nid']) ?? '').trim(),
             productName: String(get(row, 'designation') ?? '—').trim() || '—',
             phone: phone,
+            price: priceObj.value,
             totalSales: parsedBucket === 'delivered' ? priceObj.value : 0,
             status: parsedBucket,
             carrier_fee: null,

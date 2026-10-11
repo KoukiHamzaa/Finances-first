@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, useDeferredValue, Suspense, lazy } from 'react';
 import { formatTND, detectTemplate, parseConverty, parseLogista, parseIntigo, CACHE_KEY_PREFIX, calculateStats, enrichIntigoRows, progressStore, checkHealth, sortByProductName, parsePaymentReceipt, isBinarySpreadsheet, decodeTextBytes } from './utils.js';
-import { AnimatedNumber, ZoneTable } from './components.jsx';
+import { AnimatedNumber, ZoneTable, ReceiptSplitPanel } from './components.jsx';
 import { Button } from './components/ui/button.jsx';
 import { Input } from './components/ui/input.jsx';
 import { Label } from './components/ui/label.jsx';
@@ -191,6 +191,13 @@ export default function App() {
       const [cakadoFees, setCakadoFees] = useState({ delivery: 0, return: 0 });
       const [balkisFees, setBalkisFees] = useState({ delivery: 0, return: 0 });
 
+      // Manual brand allocation for a summary payment receipt, which carries no
+      // product-level rows to classify by.
+      const [splitAlloc, setSplitAlloc] = useState({
+        cakado: { delivered: 0, returned: 0 },
+        balkis: { delivered: 0, returned: 0 },
+      });
+
             const [dismissedUnknownGovs, setDismissedUnknownGovs] = useState(false);
       const [duplicateNids, setDuplicateNids] = useState([]);
       const [receiptSummary, setReceiptSummary] = useState(null);
@@ -251,6 +258,7 @@ const API_KEY_COMMIT_DELAY = 800;
         progressStore.set({ current: 0, total: 0, errors: 0 });
         setCakadoFees({ delivery: 0, return: 0 });
         setBalkisFees({ delivery: 0, return: 0 });
+        setSplitAlloc({ cakado: { delivered: 0, returned: 0 }, balkis: { delivered: 0, returned: 0 } });
         setShowResetModal(false);
                 setDuplicateNids([]);
         setUnrecognizedStatuses([]);
@@ -442,10 +450,20 @@ const API_KEY_COMMIT_DELAY = 800;
             if (result.isSummaryReceipt) {
               setActiveCarrier('PAYMENT_RECEIPT');
               setReceiptSummary(result.summary);
-            } else {
-              setActiveCarrier(template);
+              // Auto-fill per-parcel fee rates derived from the receipt totals
+              if (result.autoFees) {
+                setAutoFeesInfo(result.autoFees);
+                setCakadoFees(result.autoFees);
+                setBalkisFees(result.autoFees);
+              }
+              // Do NOT populate masterRows. A summary receipt carries no
+              // product-level rows to classify. Brand allocation happens in
+              // ReceiptSplitPanel via manual count inputs instead.
+              return;
             }
-            
+
+            setActiveCarrier(template);
+
             // Full State Reset: On every file upload, reset all state before loading new data
             setMasterRows(result.rows);
             
@@ -826,6 +844,7 @@ const API_KEY_COMMIT_DELAY = 800;
                   <>
                     <span className="font-display text-xl text-ink mb-2">اسحب الطلبات إلى هنا</span>
                     <span className="text-sm text-ink-soft">أو انقر لاختيار ملف (.xlsx, .csv)</span>
+                    <span className="text-xs text-ink-faint mt-2 max-w-md leading-relaxed">ارفع ملف تقرير الطرود (Détails recette) لعرض المنتجات وتصنيفها، أو وصل الاستخلاص (Reçu de paiement) لمراجعة الرسوم فقط</span>
                   </>
                 )}
                 <span className="text-xs text-ink-faint mt-4 bg-surface-2 px-3 py-1.5 rounded-full">الحالات محدّثة حتى تاريخ تصدير الملف — أعد رفع الملف لتحديثها.</span>
@@ -967,6 +986,19 @@ return (
                   </details>
                 </div>
               </Card>
+            )}
+
+            {activeCarrier === 'PAYMENT_RECEIPT' && receiptSummary && (
+              <ReceiptSplitPanel
+                receiptSummary={receiptSummary}
+                splitAlloc={splitAlloc}
+                setSplitAlloc={setSplitAlloc}
+                cakadoFees={cakadoFees}
+                balkisFees={balkisFees}
+                setCakadoFees={setCakadoFees}
+                setBalkisFees={setBalkisFees}
+                formatTND={formatTND}
+              />
             )}
 
             {(masterRows.length > 0 || cakadoRows.length > 0 || balkisRows.length > 0) && (
