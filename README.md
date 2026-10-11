@@ -1,46 +1,42 @@
-# Intigo Financial Reconciliation Console (v1.1)
+# Finances-first
 
-A secure, offline-first React SPA for financial reconciliation of e-commerce carrier data. The console parses `.xlsx` and `.csv` files from three Tunisian carriers (CONVERTY, LOGISTA, and INTIGO) to calculate delivery fees, return fees, and calculate net settlements across two distinct brands (Cakado and Balkis). 
+A React + Vite SPA for e-commerce reconciliation across carriers/brands (Cakado/Kekado and Balkis). It imports Excel/CSV files, classifies orders, lets you assign rows between brands, applies delivery/return fees (including Intigo regional return fees), computes totals, and supports Intigo product enrichment.
 
-## Architecture
+## Lock screen
 
-- **Vite React Architecture**: Refactored from a single-file Babel-Standalone approach to a fully modularized Vite React project for optimal performance and instant load times.
-- **Client-Side Parsing**: Relies on `SheetJS` (`xlsx.full.min.js`) loaded via CDN for rapid client-side file parsing without server involvement.
-- **Styling**: `Tailwind CSS` v4 with custom CSS variables providing a toggleable "Console" (dark) and "Light" theme.
-- **Security**: The application operates predominantly offline. API keys (for Intigo product enrichment) are supplied at runtime by the user, retained purely in `localStorage`, and interact directly with the Intigo API without proxy servers.
+The app starts with a discreet access gate. The user must enter two dates (one per field), accepting either order:
+- Birthday: `24/09/1996`
+- Current date: actual date in the `Africa/Tunis` timezone
 
-### Directory Structure
-- `index.html`: The clean entry point containing the module call.
-- `src/main.jsx`: The React mount script.
-- `src/App.jsx`: The core application and main UI logic.
-- `src/components.jsx`: Reusable React components (RowCard, ZoneTable, etc).
-- `src/utils.js`: Data parsing, formatting, external API handling, and constants.
-- `src/index.css`: Tailwind v4 configuration and custom CSS variables.
+Validation normalizes `DD/MM/YYYY`, `DD-MM-YYYY`, and `YYYY-MM-DD`. On success, an unlock flag is stored in `sessionStorage` (`lock_unlocked=1`) for that tab session (refresh preserves unlock in the same tab; new tabs require re-entry). On failure, the browser navigates to `https://www.google.com/` via `location.replace` (no history entry retained). Incomplete inputs do not trigger redirection.
 
-## Design previews
+> Note: The birthday is a hardcoded value in the frontend. For non-personal deployments, move it to a build-time environment variable (e.g. `VITE_LOCK_DATE`) instead of embedding in source.
 
-Five candidate **layouts** live at `/design/` (gallery) and `/design-v1/` … `/design-v5/`. They are standalone static pages — no React, no shared code with the app — so they can be compared and swapped without touching production. Their DOM trees are intentionally *not* interchangeable: each one is a different information architecture over the same data. See `design/README.md`.
+## Fees
 
-| Route | Name | Layout |
-| --- | --- | --- |
-| `/design-v1/` | Ledger (دفتر) | one reading column, real tables stacked vertically |
-| `/design-v2/` | Terminal (طرفية) | one dense table, trays as separator rows, command line |
-| `/design-v3/` | Sandstone (حجر رملي) | one card per row, tray tabs, permanent action bar |
-| `/design-v4/` | Slate (لوحتان) | master–detail: scrolling index beside the active order |
-| `/design-v5/` | Noir (لوحة أعمدة) | full-height kanban lanes, each scrolling on its own |
+- Standard carriers (Converty/Logista): delivery and return fees per parcel (manual).
+- Intigo: three fee inputs per brand:
+  - Delivery fee (all delivered parcels)
+  - Return fee — Grand Tunis (Tunis, Mannouba, Ariana, Ben Arous)
+  - Return fee — Other governorates
+When an Intigo file is uploaded, `parseIntigo` derives these rates from the `Frais` column (first observed values for delivered, Grand Tunis returned, non-Grand-Tunis returned) and pre-fills the inputs. You can override them manually. `calculateStats` applies the appropriate regional return fee based on `resolveGov(city)`.
 
-## Features
+## Import handling
 
-- **Automated Carrier Parsing**: Transparently auto-detects column structures and row mapping for Converty, Logista, and Intigo exports based on exact header signatures.
-- **Cross-Brand Splitting**: Employs a three-tray drag-and-drop / bulk-move system. All rows initially land in the "Master" (unassigned) tray and can be categorized into Cakado or Balkis trays.
-- **Dynamic Fee Rules**: Fully adjustable base fees (delivery / return) per brand. Supports real-time recalculation of Net Carrier vs Net Rules. 
-- **Intigo Enrichment Pipeline**: Implements a robust fetch loop mapping `nid` back to product names by calling Intigo's `/api/v3/parcels` endpoint. Includes silent rate-limit throttling (HTTP 429), resilient 404 endpoint fallbacks, cache guarding, generation token cleanup, and status reconciliation.
-- **Governorate Alias Resolution**: Implements a comprehensive Arabic/French lookup dictionary mapping raw messy text strings (e.g., "Tunis", "TNS", "تونس") into standardized internal codes for precise regional fee logic.
-- **Financial Validation**: Tracks both "Carrier Reported Fees" and "Internal Rule Fees", highlighting discrepancies via automated positive/negative Δ indicators.
+- CSV/Excel detection is automatic. Text-based files (CSV) are decoded as UTF-8 (with Windows-1252 fallback) to preserve accented characters.
+- Payment receipts (summary) are shown in a dedicated split panel; no synthetic product rows are loaded into trays. Order detail files populate master rows for classification.
+- The "First Delivery" (Détails recette) format extracts product name from `designation`, price from `Prix`, and phone from `Client` ("Name / phone").
 
-## Operation & Workflow
-1. **Ingest**: Drop an exported `.xlsx` file from the carrier onto the drop zone.
-2. **Review Initial Validation**: The application flags unknown governorates, duplicate NIDs, and unrecognized parcel states as dismissible banners for immediate correction.
-3. **Product Enrichment (Intigo only)**: Requires an active Intigo API Key. Parcels undergo iterative fetch requests to attach product descriptions, updating dynamically in the grid.
-4. **Assignment**: Assign groups of rows to either brand tray (Cakado or Balkis) via bulk selection.
-5. **Reconcile**: View the live command bar metrics comparing expected settlements vs actuals.
+## Development
+
+- Install: `npm install`
+- Dev: `npm run dev`
+- Build: `npm run build`
+- Test: `node --test "tests/*.test.js"`
+- Lint: `npm run lint`
+
+## Security notes
+
+- Intigo API key is stored in `localStorage` (`intigoApiKey`). Requests use `X-API-Key`. No key is logged.
+- File parsing is synchronous on main thread for typical export sizes.
+- Unlock state uses `sessionStorage` (tab-scoped). No permanent bypass via refresh within the same tab.
