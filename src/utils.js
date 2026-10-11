@@ -451,11 +451,12 @@ export function parseIntigo(rows) {
         if (deliveryFee !== null && returnGrandTunisFee !== null && returnOtherFee !== null) break;
       }
 
-      const autoFees = (deliveryFee !== null || returnGrandTunisFee !== null || returnOtherFee !== null)
+      const firstDelivered = parsed.find(r => r.status === 'delivered' && r.carrier_fee != null);
+      const firstReturned  = parsed.find(r => r.status === 'returned'  && r.carrier_fee != null);
+      const autoFees = (firstDelivered || firstReturned)
         ? {
-            delivery: deliveryFee ?? 0,
-            returnGrandTunis: returnGrandTunisFee ?? 0,
-            returnOther: returnOtherFee ?? 0,
+            delivery: firstDelivered?.carrier_fee ?? 0,
+            return:   firstReturned?.carrier_fee  ?? 0,
           }
         : null;
 
@@ -705,6 +706,9 @@ export const calculateStats = (rows, fees) => {
              totalSales += row.totalSales;
              
              let rf = fees.delivery || 0;
+             if (row.carrier === 'INTIGO' && row.carrier_fee != null) {
+                rf = row.carrier_fee;
+             }
              row.rule_fee = rf;
              totalRuleFeeDelivery += rf;
           } else if (row.status === 'returned') {

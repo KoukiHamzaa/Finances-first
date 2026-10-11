@@ -301,7 +301,7 @@ describe('parseIntigo', () => {
 
   test('marks rows for enrichment and flags the carrier', () => {
     assert.equal(isIntigo, true);
-    assert.equal(autoFees, null);
+    assert.deepEqual(autoFees, { delivery: 7, return: 7 });
     assert.ok(rows.every((r) => r.needsEnrichment === true && r.carrier === 'INTIGO'));
     assert.ok(rows.every((r) => r.productName === 'جاري التحميل...'));
   });
@@ -452,29 +452,28 @@ describe('calculateStats', () => {
     assert.equal(s.totalRuleFeeDelivery, 7, 'fee is still charged on a prepaid order');
   });
 
-  test('Intigo overrides delivery fee with a flat 7 and return fee by governorate', () => {
+  test('Intigo uses carrier fee directly from each row', () => {
     const rows = [
-      { status: 'delivered', totalSales: 100, carrier: 'INTIGO', carrier_fee: 7, city: 'Tunis', rule_fee: 0, fee_delta: null },
-      { status: 'delivered', totalSales: 100, carrier: 'INTIGO', carrier_fee: 7, city: 'Sfax', rule_fee: 0, fee_delta: null },
-      { status: 'returned', totalSales: 0, carrier: 'INTIGO', carrier_fee: 7, city: 'Tunis', rule_fee: 0, fee_delta: null },
-      { status: 'returned', totalSales: 0, carrier: 'INTIGO', carrier_fee: 7, city: 'Sousse', rule_fee: 0, fee_delta: null },
-      { status: 'returned', totalSales: 0, carrier: 'INTIGO', carrier_fee: 7, city: 'Nowhere Ville', rule_fee: 0, fee_delta: null },
+      { status: 'delivered', totalSales: 100, carrier: 'INTIGO', carrier_fee: 6.96, city: 'Tunis', rule_fee: 0, fee_delta: null },
+      { status: 'delivered', totalSales: 100, carrier: 'INTIGO', carrier_fee: 6.96, city: 'Sfax', rule_fee: 0, fee_delta: null },
+      { status: 'returned', totalSales: 0, carrier: 'INTIGO', carrier_fee: 1.07, city: 'Tunis', rule_fee: 0, fee_delta: null },
+      { status: 'returned', totalSales: 0, carrier: 'INTIGO', carrier_fee: 2.14, city: 'Sousse', rule_fee: 0, fee_delta: null },
+      { status: 'returned', totalSales: 0, carrier: 'INTIGO', carrier_fee: 2.14, city: 'Nowhere Ville', rule_fee: 0, fee_delta: null },
     ];
     const s = calculateStats(rows, { delivery: 0, return: 0 });
     assert.equal(s.totalSales, 200);
-    assert.equal(s.totalRuleFeeDelivery, 14, 'two Intigo deliveries at 7 each');
-    assert.equal(s.totalRuleFeeReturn, 5, '1 (Tunis) + 2 (Sousse) + 2 (unknown)');
-    assert.equal(s.netRule, 181);
-    assert.deepEqual(s.newUnknownGovs, ['Sousse', 'Nowhere Ville']);
-    // SIDE EFFECT: writes rule_fee and fee_delta back onto rows.
-    assert.equal(rows[0].rule_fee, 7);
-    assert.equal(rows[0].fee_delta, 0, 'carrier 7 vs rule 7');
+    assert.equal(s.totalRuleFeeDelivery, 13.92);
+    assert.equal(s.totalRuleFeeReturn, 5.35);
+    assert.equal(s.netRule, 180.73);
+    assert.deepEqual(s.newUnknownGovs, []);
+    assert.equal(rows[0].rule_fee, 6.96);
+    assert.equal(rows[0].fee_delta, 0);
     assert.equal(rows[1].fee_delta, 0);
-    assert.equal(rows[2].rule_fee, 1);
-    assert.equal(rows[2].fee_delta, 6, 'carrier 7 vs rule 1');
-    assert.equal(rows[3].rule_fee, 2);
-    assert.equal(rows[3].fee_delta, 5);
-    assert.equal(rows[4].rule_fee, 2, 'unknown governorate is priced as the 2 TND tier');
+    assert.equal(rows[2].rule_fee, 1.07);
+    assert.equal(rows[2].fee_delta, 0);
+    assert.equal(rows[3].rule_fee, 2.14);
+    assert.equal(rows[3].fee_delta, 0);
+    assert.equal(rows[4].rule_fee, 2.14);
   });
 
   test('reports an invoice net only when at least one row has a carrier fee', () => {
