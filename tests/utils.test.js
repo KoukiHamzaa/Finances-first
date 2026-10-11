@@ -223,6 +223,7 @@ describe('parseConverty', () => {
       barcode: 'BC-001',
       productName: 'Chemise en coton',
       phone: '+216 20 111 222',
+      price: 45.5,
       totalSales: 45.5,
       status: 'delivered',
       carrier_fee: null,

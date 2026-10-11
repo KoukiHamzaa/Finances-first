@@ -99,8 +99,13 @@ const BrandSummaryCard = React.memo(({ title, stats }) => (
           </Card>
 ));
 
+const LockScreen = React.lazy(() => import('./LockScreen.jsx'));
+
 export default function App() {
-  // Splash fade out
+  // Lock gate
+  const [unlocked, setUnlocked] = useState(() => {
+    try { return sessionStorage.getItem('lock_unlocked') === '1'; } catch (_) { return false; }
+  });
   useEffect(() => {
     const splash = document.getElementById('boot-splash');
     if (splash) {
@@ -675,6 +680,13 @@ const API_KEY_COMMIT_DELAY = 800;
 
       const isIntigoLocked = activeCarrier === 'INTIGO';
 
+      if (!unlocked) {
+        return (
+          <React.Suspense fallback={null}>
+            <LockScreen onUnlock={() => setUnlocked(true)} />
+          </React.Suspense>
+        );
+      }
       return (
         <div className="flex flex-col min-h-dvh pb-24 text-ink transition-colors duration-250">
           
