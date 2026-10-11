@@ -444,7 +444,7 @@ export function parseIntigo(rows) {
           const govInfo = resolveGov(row.city);
           if (govInfo.isGrandTunis && returnGrandTunisFee === null) {
             returnGrandTunisFee = row.carrier_fee;
-          } else if (!govInfo.isGrandTunis && !govInfo.unknown && returnOtherFee === null) {
+          } else if (!govInfo.isGrandTunis && returnOtherFee === null) {
             returnOtherFee = row.carrier_fee;
           }
         }
@@ -710,11 +710,7 @@ export const calculateStats = (rows, fees) => {
           } else if (row.status === 'returned') {
              let rf = fees.return || 0;
              if (row.carrier === 'INTIGO') {
-                const govInfo = resolveGov(row.city);
-                rf = govInfo.isGrandTunis
-                  ? (fees.returnGrandTunis > 0 ? fees.returnGrandTunis : rf)
-                  : (fees.returnOther > 0 ? fees.returnOther : rf);
-                if (govInfo.unknown) newUnknownGovs.push(govInfo.raw);
+                rf = row.carrier_fee != null ? row.carrier_fee : rf;
              }
              row.rule_fee = rf;
              totalRuleFeeReturn += rf;
