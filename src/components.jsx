@@ -151,12 +151,18 @@ export const RowCard = React.memo(({ row, selectable, selected, onToggle, onDrag
 }, (prevProps, nextProps) => {
   return prevProps.selected === nextProps.selected &&
          prevProps.selectable === nextProps.selectable &&
+         prevProps.zone === nextProps.zone &&
+         prevProps.i === nextProps.i &&
          prevProps.row.id === nextProps.row.id &&
          prevProps.row.status === nextProps.row.status &&
          prevProps.row.enrichState === nextProps.row.enrichState &&
          prevProps.row.productName === nextProps.row.productName &&
          prevProps.row.totalSales === nextProps.row.totalSales &&
-         prevProps.row.city === nextProps.row.city;
+         prevProps.row.city === nextProps.row.city &&
+         prevProps.row.phone === nextProps.row.phone &&
+         prevProps.row.hasError === nextProps.row.hasError &&
+         prevProps.row.carrier_fee === nextProps.row.carrier_fee &&
+         prevProps.row.fee_delta === nextProps.row.fee_delta;
 });
 
 
@@ -264,8 +270,17 @@ export const ZoneTable = React.memo(({ rows, title, zone, selectable = false, ac
           };
         }, []);
 
-        const allSelected = rows.length > 0 && rows.every(r => selectedIds.has(r.id));
-const someSelected = rows.some(r => selectedIds.has(r.id));
+        const { allSelected, someSelected } = useMemo(() => {
+          if (!rows.length || !selectedIds.size) return { allSelected: false, someSelected: false };
+          let matchCount = 0;
+          for (let idx = 0; idx < rows.length; idx++) {
+            if (selectedIds.has(rows[idx].id)) matchCount++;
+          }
+          return {
+            allSelected: matchCount === rows.length,
+            someSelected: matchCount > 0,
+          };
+        }, [rows, selectedIds]);
 const { delCount, retCount, inProgCount, cancelCount, exchCount, prepaidCount } = useMemo(() => {
           return {
             delCount: rows.filter(r=>r.status==='delivered').length,

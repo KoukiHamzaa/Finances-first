@@ -3,6 +3,17 @@ export const round3 = (x) => {
       return isNaN(n) ? 0 : n;
     };
 
+export const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 // A byte stream is a real binary spreadsheet (xlsx=ZIP, xls=OLE2) only when it
 // starts with a known container signature. Anything else is a text export
 // (CSV/TXT) whose accented characters must be decoded, not read as raw bytes.
@@ -219,7 +230,7 @@ export function parseConverty(rows) {
           let priceObj = parseMoney(get(row, 'prix'));
           
           return {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             barcode: String(getFlexible(row, ['code', 'tracking', 'nid']) ?? '').trim(),
             productName: String(get(row, 'designation') ?? '—').trim() || '—',
             phone: phone,
@@ -319,7 +330,7 @@ export function parseLogista(rows) {
                       (!isDelivered && retPhoneIdx > -1) ? String(row[retPhoneIdx] ?? '').trim() : '';
           
           return {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             barcode: barcode,
             productName: String(row[2] ?? '—').trim() || '—',
             phone: phone,
@@ -414,7 +425,7 @@ export function parseIntigo(rows) {
           let carrier_fee = get(row, 'frais') !== undefined ? carrierFeeObj.value : null;
 
           return {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             nid: nid,
             city: String(get(row, 'ville') ?? '').trim(),
             productName: 'جاري التحميل...',
@@ -460,7 +471,13 @@ export function parseIntigo(rows) {
           }
         : null;
 
-      return { rows: parsed, autoFees, isIntigo: true, duplicateNids: [...new Set(duplicateNids)] };
+      return {
+        rows: parsed,
+        autoFees,
+        isIntigo: true,
+        duplicateNids: [...new Set(duplicateNids)],
+        unrecognizedStatuses: [...new Set(unrecognizedList)]
+      };
     }
 
 export function parsePaymentReceipt(rows) {
@@ -521,7 +538,7 @@ export function parsePaymentReceipt(rows) {
       const isRet = norm.includes('retour');
       const st = isRet ? 'returned' : 'delivered';
       explicitRows.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         barcode: barcode || `REC-${idx + 1}`,
         productName: rawDesc,
         phone: '',
@@ -562,7 +579,7 @@ export function parsePaymentReceipt(rows) {
         ? round3(totalCod - baseSalePerDelivery * (delCount - 1))
         : baseSalePerDelivery;
       parsed.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         barcode: `REC-DEL-${String(i).padStart(3, '0')}`,
         productName: `طرد مسلّم #${i}`,
         phone: '',
@@ -579,7 +596,7 @@ export function parsePaymentReceipt(rows) {
 
     for (let j = 1; j <= retCount; j++) {
       parsed.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         barcode: `REC-RET-${String(j).padStart(3, '0')}`,
         productName: `طرد مسترجع #${j}`,
         phone: '',
@@ -598,7 +615,7 @@ export function parsePaymentReceipt(rows) {
     const feePerExchange = exchCount > 0 ? round3((summary.exchangeFees || 0) / exchCount) : 0;
     for (let k = 1; k <= exchCount; k++) {
       parsed.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         barcode: `REC-ECH-${String(k).padStart(3, '0')}`,
         productName: `طرد تبادل #${k}`,
         phone: '',
@@ -615,7 +632,7 @@ export function parsePaymentReceipt(rows) {
 
     if (parsed.length === 0 && totalCod > 0) {
       parsed.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         barcode: 'REC-001',
         productName: 'دفعة استخلاص',
         phone: '',
@@ -712,9 +729,17 @@ export const calculateStats = (rows, fees) => {
              row.rule_fee = rf;
              totalRuleFeeDelivery += rf;
           } else if (row.status === 'returned') {
-             let rf = fees.return || 0;
+             let rf = fees?.return || 0;
              if (row.carrier === 'INTIGO') {
-                rf = row.carrier_fee != null ? row.carrier_fee : rf;
+                if (row.carrier_fee != null) {
+                   rf = row.carrier_fee;
+                } else if (fees?.returnGrandTunis || fees?.returnOther) {
+                   const govInfo = resolveGov(row.city);
+                   if (govInfo.unknown && row.city) {
+                      newUnknownGovs.push(row.city);
+                   }
+                   rf = govInfo.isGrandTunis ? (fees.returnGrandTunis || 0) : (fees.returnOther || 0);
+                }
              }
              row.rule_fee = rf;
              totalRuleFeeReturn += rf;

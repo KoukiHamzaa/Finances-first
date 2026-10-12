@@ -33,7 +33,7 @@ const SORTERS = {
   'price-desc': (a, b) => b.totalSales - a.totalSales,
   'price-asc': (a, b) => a.totalSales - b.totalSales,
   'city': (a, b) => String(a.city || '').localeCompare(String(b.city || '')),
-  'status': (a, b) => a.status.localeCompare(b.status),
+  'status': (a, b) => String(a.status || '').localeCompare(String(b.status || '')),
   'product': sortByProductName,
 };
 
@@ -134,14 +134,16 @@ export default function App() {
 
       // Theme toggle
       const [theme, setTheme] = useState(() => {
-        const stored = localStorage.getItem('recon-theme');
-        if (stored) return stored;
+        try {
+          const stored = localStorage.getItem('recon-theme');
+          if (stored) return stored;
+        } catch (_) {}
         return 'light';
       });
 
       useEffect(() => {
         document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('recon-theme', theme);
+        try { localStorage.setItem('recon-theme', theme); } catch (_) {}
       }, [theme]);
       
       useEffect(() => {
@@ -158,7 +160,9 @@ export default function App() {
       const toggleTheme = () => setTheme(t => t === 'light' ? 'console' : 'light');
 
       // Intigo State
-      const [intigoApiKey, setIntigoApiKey] = useState(localStorage.getItem('intigoApiKey') || '');
+      const [intigoApiKey, setIntigoApiKey] = useState(() => {
+        try { return localStorage.getItem('intigoApiKey') || ''; } catch (_) { return ''; }
+      });
       const apiKeyRef = useRef(intigoApiKey);
       useEffect(() => { apiKeyRef.current = intigoApiKey; }, [intigoApiKey]);
       const [isEnriching, setIsEnriching] = useState(false);
@@ -328,14 +332,16 @@ const API_KEY_COMMIT_DELAY = 800;
       }, [masterRows.length, cakadoRows.length, balkisRows.length, activeCarrier, isEnriching, resetSession]);
 
       const handleClearCache = useCallback(() => {
-         const keysToRemove = [];
-         for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith(CACHE_KEY_PREFIX)) {
-               keysToRemove.push(key);
-            }
-         }
-         keysToRemove.forEach(k => localStorage.removeItem(k));
+         try {
+           const keysToRemove = [];
+           for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && key.startsWith(CACHE_KEY_PREFIX)) {
+                 keysToRemove.push(key);
+              }
+           }
+           keysToRemove.forEach(k => localStorage.removeItem(k));
+         } catch (_) {}
 
          if (activeCarrierRef.current === 'INTIGO') {
             const apiKey = apiKeyRef.current;
@@ -344,10 +350,10 @@ const API_KEY_COMMIT_DELAY = 800;
                return;
             }
             const updateArr = (arr) => arr.map(r => ({ ...r, needsEnrichment: true, enrichState: 'pending', productName: 'جاري الجلب...' }));
-            let allToEnrich = [];
-            setMasterRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
-            setCakadoRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
-            setBalkisRows(prev => { const n = updateArr(prev); allToEnrich.push(...n); return n; });
+            const allToEnrich = updateArr([...rowsByIdRef.current.values()]);
+            setMasterRows(prev => updateArr(prev));
+            setCakadoRows(prev => updateArr(prev));
+            setBalkisRows(prev => updateArr(prev));
 
             // Deferred so the pending state is painted before the loop starts.
             setTimeout(() => startEnrichment(allToEnrich, currentUploadId.current), 0);
@@ -518,11 +524,6 @@ const API_KEY_COMMIT_DELAY = 800;
           handleFileUpload(e.dataTransfer.files[0]);
         }
       }, [handleFileUpload]);
-
-      // Number Formatting
-
-      ;
-
       // Filtering and sorting three arrays is the expensive part of a
       // keystroke, so the query is deferred: the input stays responsive and
       // the list catches up a frame later.
